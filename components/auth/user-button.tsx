@@ -15,7 +15,7 @@ export function UserButton() {
     await authClient.signOut({
       fetchOptions: {
         onSuccess: () => {
-          router.replace("/login")
+          router.replace("/")
           router.refresh()
         },
       },
@@ -34,13 +34,13 @@ export function UserButton() {
     return (
       <div className="flex items-center gap-2">
         <Link
-          href="/login"
+          href="/"
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           Sign in
         </Link>
         <Link
-          href="/login?mode=sign-up"
+          href="/?mode=sign-up"
           className={buttonVariants({ size: "sm" })}
         >
           Register

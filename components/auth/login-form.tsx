@@ -26,7 +26,7 @@ export function LoginForm({
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   React.useEffect(() => {
-    if (session?.user) router.replace("/")
+    if (session?.user) router.replace("/dashboard")
   }, [router, session?.user])
 
   const resetRedirectTo = React.useCallback(() => {
@@ -59,14 +59,14 @@ export function LoginForm({
             name,
             email,
             password,
-            callbackURL: "/",
+            callbackURL: "/dashboard",
           })
           if (result.error) setError(result.error.message ?? "Sign up failed")
         } else {
           const result = await authClient.signIn.email({
             email,
             password,
-            callbackURL: "/",
+            callbackURL: "/dashboard",
           })
           if (result.error) {
             const status =

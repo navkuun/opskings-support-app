@@ -15,7 +15,7 @@ const anybody = Anybody({
 
 export const metadata: Metadata = {
   title: "OpsKings Support",
-  description: "Support dashboard template (Next.js + Drizzle + Zero + Better Auth).",
+  description: "Support dashboard for OpsKings clients.",
 }
 
 export default function RootLayout({

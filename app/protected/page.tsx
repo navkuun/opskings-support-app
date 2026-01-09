@@ -1,9 +1,12 @@
+import { eq } from "drizzle-orm"
 import Link from "next/link"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { ClientSessionDebug } from "@/components/auth/client-session-debug"
 import { getAuth } from "@/lib/auth"
+import { db } from "@/lib/db"
+import { appUsers } from "@/lib/db/schema/app-users"
 
 export const runtime = "nodejs"
 
@@ -13,7 +16,27 @@ export default async function ProtectedPage() {
   })
 
   if (!session?.user?.id) {
-    redirect("/login")
+    redirect("/")
+  }
+
+  const appUserRows = await db
+    .select({
+      accountStatus: appUsers.accountStatus,
+      userType: appUsers.userType,
+      internalRole: appUsers.internalRole,
+    })
+    .from(appUsers)
+    .where(eq(appUsers.authUserId, session.user.id))
+    .limit(1)
+
+  const appUser = appUserRows[0] ?? null
+
+  if (!appUser || appUser.accountStatus !== "active") {
+    redirect("/no-access")
+  }
+
+  if (appUser.userType !== "internal") {
+    redirect("/client")
   }
 
   return (
@@ -37,6 +60,10 @@ export default async function ProtectedPage() {
             <span className="text-zinc-500 dark:text-zinc-400">Email:</span>{" "}
             {session.user.email}
           </div>
+          <div>
+            <span className="text-zinc-500 dark:text-zinc-400">Role:</span>{" "}
+            {appUser.internalRole ?? "—"}
+          </div>
         </div>
       </div>
 
@@ -44,7 +71,7 @@ export default async function ProtectedPage() {
 
       <div className="flex items-center gap-2">
         <Link
-          href="/"
+          href="/dashboard"
           className="text-sm text-zinc-700 underline underline-offset-4 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
         >
           Back to home
@@ -61,4 +88,3 @@ export default async function ProtectedPage() {
     </main>
   )
 }
-

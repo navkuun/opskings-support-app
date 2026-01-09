@@ -1,8 +1,13 @@
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
+import { eq } from "drizzle-orm"
 
 import { authDb } from "@/lib/db/auth"
+import { db } from "@/lib/db"
+import { appUsers } from "@/lib/db/schema/app-users"
 import * as authSchema from "@/lib/db/schema/better-auth"
+import { clients } from "@/lib/db/schema/clients"
+import { teamMembers } from "@/lib/db/schema/team-members"
 import { setPasswordResetLink } from "@/lib/auth-dev-mailbox"
 import { setEmailVerificationLink } from "@/lib/auth-dev-verify-mailbox"
 import { sendEmailVerificationEmail, sendPasswordResetEmail } from "@/lib/email/resend"
@@ -39,7 +44,7 @@ export function getAuth() {
     )
   }
 
-  const AUTH_CONFIG_VERSION = "2026-01-09-email-only"
+  const AUTH_CONFIG_VERSION = "2026-01-09-email-only-app-users-v2"
   const signature = JSON.stringify({
     v: AUTH_CONFIG_VERSION,
     baseURL: getBaseURL(),
@@ -105,6 +110,66 @@ export function getAuth() {
             `[Better Auth][dev] Password reset completed for ${user.email}`,
           )
         }
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            const existing = await db
+              .select({ authUserId: appUsers.authUserId })
+              .from(appUsers)
+              .where(eq(appUsers.authUserId, user.id))
+              .limit(1)
+
+            if (existing.length) return
+
+            const teamMember = await db
+              .select({ id: teamMembers.id })
+              .from(teamMembers)
+              .where(eq(teamMembers.email, user.email))
+              .limit(1)
+
+            if (teamMember.length) {
+              await db.insert(appUsers).values({
+                authUserId: user.id,
+                accountStatus: "pending",
+                userType: "internal",
+                internalRole: null,
+                teamMemberId: teamMember[0].id,
+                clientId: null,
+              })
+              return
+            }
+
+            const client = await db
+              .select({ id: clients.id })
+              .from(clients)
+              .where(eq(clients.email, user.email))
+              .limit(1)
+
+            if (client.length) {
+              await db.insert(appUsers).values({
+                authUserId: user.id,
+                accountStatus: "pending",
+                userType: "client",
+                internalRole: null,
+                teamMemberId: null,
+                clientId: client[0].id,
+              })
+              return
+            }
+
+            await db.insert(appUsers).values({
+              authUserId: user.id,
+              accountStatus: "pending",
+              userType: "client",
+              internalRole: null,
+              teamMemberId: null,
+              clientId: null,
+            })
+          },
+        },
       },
     },
     advanced: {
