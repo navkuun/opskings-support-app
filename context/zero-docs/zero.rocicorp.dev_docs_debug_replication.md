@@ -1,0 +1,62 @@
+---
+url: "https://zero.rocicorp.dev/docs/debug/replication"
+title: "Replication"
+---
+
+## For AI assistants
+
+ALWAYS read [llms.txt](https://zero.rocicorp.dev/llms.txt) for curated documentation pages and examples.
+
+# Replication  Copy markdown  \\# Replication  \\#\# Resetting  During development we all do strange things (unsafely changing schemas, removing files, etc.). If the replica ever gets wedged (stops replicating, acts strange) you can wipe it and start over.  \\* If you copied your setup from \`hello-zero\` or \`hello-zero-solid\`, you can also run \`npm run dev:clean\` \\* Otherwise you can run \`rm /tmp/my-zero-replica.db\*\` (see your \`.env\` file for the replica file location) to clear the contents of the replica.  It is always safe to wipe the replica. Wiping will have no impact on your upstream database. Downstream zero-clients will get re-synced when they connect.  \\#\# Inspecting  For data to be synced to the client it must first be replicated to \`zero-cache\`. You can check the contents of \`zero-cache\` via:  \`\`\`bash $ npx @rocicorp/zero-sqlite3 /tmp/my-zero-replica.db \`\`\`  \> 💡 \*\*Zero uses the bedrock version of SQLite\*\*: Zero uses a different version of SQLite that runs in WAL2 mode, which means the database files cannot be opened with standard SQLite tools. > \> To inspect your Zero database, you have two options: > \> 1\. Use our pre-compiled SQLite build \`@rocicorp/zero-sqlite3\` as described above \> 2\. Build SQLite from the SQLite \`bedrock\` branch yourself  This will drop you into a \`sqlite3\` shell with which you can use to explore the contents of the replica.  \`\`\`sql sqlite> .tables \_zero.changeLog emoji viewState \_zero.replicationConfig issue zero.permissions \_zero.replicationState issueLabel zero.schemaVersions \_zero.runtimeEvents label zero\_0.clients \_zero.versionHistory user comment userPref sqlite> .mode qbox sqlite> SELECT \* FROM label; ┌─────────────────────────┬──────────────────────────┬────────────┐ │ id │ name │ \_0\_version │ ├─────────────────────────┼──────────────────────────┼────────────┤ │ 'ic\_g-DZTYDApZR\_v7Cdcy' │ 'bug' │ '4ehreg' │ ... \`\`\`  \\#\# Miscellaneous  If you see \`FATAL: sorry, too many clients already\` in logs, it’s because you have two zero-cache instances running against dev. One is probably in a background tab somewhere. In production, \`zero-cache\` can run horizontally scaled but on dev it doesn’t run in the config that allows that.      \#\# Or, for AI assistants    ALWAYS read [llms.txt](https://zero.rocicorp.dev/llms.txt) for curated documentation pages and examples.
+
+## [Resetting](https://zero.rocicorp.dev/docs/debug/replication\#resetting)
+
+During development we all do strange things (unsafely changing schemas, removing files, etc.). If the replica ever gets wedged (stops replicating, acts strange) you can wipe it and start over.
+
+- If you copied your setup from `hello-zero` or `hello-zero-solid`, you can also run `npm run dev:clean`
+- Otherwise you can run `rm /tmp/my-zero-replica.db*` (see your `.env` file for the replica file location) to clear the contents of the replica.
+
+It is always safe to wipe the replica. Wiping will have no impact on your upstream database. Downstream zero-clients will get re-synced when they connect.
+
+## [Inspecting](https://zero.rocicorp.dev/docs/debug/replication\#inspecting)
+
+For data to be synced to the client it must first be replicated to `zero-cache`. You can check the contents of `zero-cache` via:
+
+```
+Copy$ npx @rocicorp/zero-sqlite3 /tmp/my-zero-replica.db
+```
+
+[💡Zero uses the bedrock version of SQLite](https://zero.rocicorp.dev/docs/debug/replication#sqlite-version)
+
+This will drop you into a `sqlite3` shell with which you can use to explore the contents of the replica.
+
+```
+Copysqlite> .tables
+_zero.changeLog          emoji                    viewState
+_zero.replicationConfig  issue                    zero.permissions
+_zero.replicationState   issueLabel               zero.schemaVersions
+_zero.runtimeEvents      label                    zero_0.clients
+_zero.versionHistory     user
+comment                  userPref
+sqlite> .mode qbox
+sqlite> SELECT * FROM label;
+┌─────────────────────────┬──────────────────────────┬────────────┐
+│           id            │           name           │ _0_version │
+├─────────────────────────┼──────────────────────────┼────────────┤
+│ 'ic_g-DZTYDApZR_v7Cdcy' │ 'bug'                    │ '4ehreg'   │
+...
+```
+
+## [Miscellaneous](https://zero.rocicorp.dev/docs/debug/replication\#miscellaneous)
+
+If you see `FATAL:  sorry, too many clients already` in logs, it’s because you have two zero-cache instances running against dev. One is probably in a background tab somewhere. In production, `zero-cache` can run horizontally scaled but on dev it doesn’t run in the config that allows that.
+
+[PreviousSlow Queries](https://zero.rocicorp.dev/docs/debug/slow-queries)
+
+[NextQuery ASTs](https://zero.rocicorp.dev/docs/debug/query-asts)
+
+### On this page
+
+[Resetting](https://zero.rocicorp.dev/docs/debug/replication#resetting) [Inspecting](https://zero.rocicorp.dev/docs/debug/replication#inspecting) [Miscellaneous](https://zero.rocicorp.dev/docs/debug/replication#miscellaneous)
+
+[Edit this page on GitHub](https://github.com/rocicorp/zero-docs/blob/main/contents/docs/debug/replication.mdx)

@@ -1,0 +1,96 @@
+---
+url: "https://zero.rocicorp.dev/docs/offline"
+title: "Offline"
+---
+
+## For AI assistants
+
+ALWAYS read [llms.txt](https://zero.rocicorp.dev/llms.txt) for curated documentation pages and examples.
+
+# Offline  Copy markdown  \\# Offline  Zero currently supports offline reads, but not writes. We plan to support offline writes in the future, but we don't have a timeline for that yet.  \> 🤓 \*\*Well actually…\*\*: Offline writes \*are\* currently accepted by Zero, and sent when you come back online. But we plan to disable this soon.  The lack of offline writes is often surprising to people familiar with sync engines, because offline is usually touted as something that comes for free with these tools.  This page explains why Zero doesn't currently support offline writes, how we recommend you handle connectivity loss, and our future plans in this area.  \\#\# Offline Writes are a UX Problem  While Zero can technically queue offline writes and replay them when reconnected (this happens by default in any sync engine, and is what Zero does today), that fact doesn't make supporting offline writes much easier. That's because a really hard part of offline writes is in handling conflicts, and no software tool can make that problem go away.  For example, imagine two users are editing an article about cats. One goes offline and does a bunch of work on the article, while the other decides that the article should actually be about dogs and rewrites it. When the offline user reconnects, there is no way that any software algorithm can automatically resolve their conflict. One or the other of them is going to be upset.  And while the above example may sound extreme, you can construct similar situations with the majority of common applications. Just take your own application and ask yourself what should really happen if one user takes their device offline for a week and makes arbitrarily complex changes while other users are working online.  People who work on sync engines and related tools often say that \*offline is just extreme lag\*, but that's only true at a technical level. At a human level, being "offline" for a few seconds is very different from being offline for a few hours. The difference is how much knowledge you have about what your collaborators are doing, and how much of your work can be lost.  The only way to support offline writes in general is to either:  1\. Make the logical datamodel append-only (i.e., users can create and mark tasks done, but cannot edit or delete them). 2\. Support custom UX to allow users to fork and merge conflicts when they occur. 3\. Only support editing from a single device.  None of these is \*free\*. Building a good offline UX is a lot of work, and most of that work is borne by application developers.  \\#\# … And a Schema Problem  But it's not just users that can diverge from each other. The server software and database schema can also diverge arbitrarily far from the client while the client is disconnected. When the client comes back online, the changes made may no longer be processable by the application, or may have a different effect than the user intended.  So to support long offline periods, the server must also maintain backward compatibility with clients indefinitely. Similarly, the server can never reject an offline write (i.e., due to validation) because that could lead to a user losing huge amounts of work.  \\#\# … And a Sync Engine Problem  Supporting offline writes also requires work in the sync engine.  In Zero, there are a few specific impacts:  1\. The Zero client itself can get out of date while offline. On reconnect, the app might reload with a new version of the client. This new version must be able to read and process old data from arbitrarily long ago. 2\. An arbitrarily large number of pending mutations can be built up. These mutations must be replayed on reconnect, which can take a long time. 3\. When processing mutations on server we must consider what should happen if the database or application server are temporarily unavailable. We need to treat that kind of error differently from a validation error.  These problems are surmountable, but significant effort. Their solutions might also be in tension with other goals of the sync engine, like online performance and scalability. These tradeoffs will take time to work through.  \\#\# Zero's Position  For all of the above reasons, we plan to disable offline writes in Zero for beta.  When the Zero client loses connection to \`zero-cache\` for several minutes (or when \`zero-cache\` cannot reach the customer API server), it will enter a special \*offline mode\*. In this mode, all writes to Zero will throw.  While we recognize that offline writes would be useful for some applications, the reality is that for most of the apps we want to support, the user is online the vast majority of the time and the cost to support offline is extremely high. There is simply more value in making the online experience great first.  We would like to revisit this in the future and really think through how to design APIs and patterns that allow developers to make successful offline-enabled apps. But it's not our priority right now.  \\#\# Dealing with Offline Today  Until Zero disables offline writes automatically, use \`useZeroOnline\` to detect connection loss and manually disable writes in your UI:  \`\`\`tsx const {online} = useZeroOnline()  return <button disabled={!online}>Add to cart</button> \`\`\`  ... or use the underlying \`zero.onOnline\` event:  \`\`\`tsx const unsubscribe = zero.onOnline(online => { console.log('Online:', online) }) \`\`\`  \\#\# Even More Information  \\* \[Lies I was Told About Collaborative Editing\](https://www.moment.dev/blog/lies-i-was-told-pt-1): a detailed overview of the challenges around offline writes in any collaborative editing system. \\* This \[Zero Discord thread\](https://discord.com/channels/830183651022471199/1363957701331390669/1364260786108633198) covers some challenges specifically in the context of Zero. \\* \[Patchwork\](https://www.inkandswitch.com/patchwork/notebook/) by Ink & Switch is new and interesting research around how to support offline writes well in collaborative systems.      \#\# Or, for AI assistants    ALWAYS read [llms.txt](https://zero.rocicorp.dev/llms.txt) for curated documentation pages and examples.
+
+Zero currently supports offline reads, but not writes. We plan to support offline writes in the future, but we don't have a timeline for that yet.
+
+[🤓Well actually…](https://zero.rocicorp.dev/docs/offline#well-actually)
+
+The lack of offline writes is often surprising to people familiar with sync engines, because offline is usually touted as something that comes for free with these tools.
+
+This page explains why Zero doesn't currently support offline writes, how we recommend you handle connectivity loss, and our future plans in this area.
+
+## [Offline Writes are a UX Problem](https://zero.rocicorp.dev/docs/offline\#offline-writes-are-a-ux-problem)
+
+While Zero can technically queue offline writes and replay them when reconnected (this happens by default in any sync engine, and is what Zero does today), that fact doesn't make supporting offline writes much easier. That's because a really hard part of offline writes is in handling conflicts, and no software tool can make that problem go away.
+
+For example, imagine two users are editing an article about cats. One goes offline and does a bunch of work on the article, while the other decides that the article should actually be about dogs and rewrites it. When the offline user reconnects, there is no way that any software algorithm can automatically resolve their conflict. One or the other of them is going to be upset.
+
+And while the above example may sound extreme, you can construct similar situations with the majority of common applications. Just take your own application and ask yourself what should really happen if one user takes their device offline for a week and makes arbitrarily complex changes while other users are working online.
+
+People who work on sync engines and related tools often say that _offline is just extreme lag_, but that's only true at a technical level. At a human level, being "offline" for a few seconds is very different from being offline for a few hours. The difference is how much knowledge you have about what your collaborators are doing, and how much of your work can be lost.
+
+The only way to support offline writes in general is to either:
+
+1. Make the logical datamodel append-only (i.e., users can create and mark tasks done, but cannot edit or delete them).
+2. Support custom UX to allow users to fork and merge conflicts when they occur.
+3. Only support editing from a single device.
+
+None of these is _free_. Building a good offline UX is a lot of work, and most of that work is borne by application developers.
+
+## [… And a Schema Problem](https://zero.rocicorp.dev/docs/offline\#-and-a-schema-problem)
+
+But it's not just users that can diverge from each other. The server software and database schema can also diverge arbitrarily far from the client while the client is disconnected. When the client comes back online, the changes made may no longer be processable by the application, or may have a different effect than the user intended.
+
+So to support long offline periods, the server must also maintain backward compatibility with clients indefinitely. Similarly, the server can never reject an offline write (i.e., due to validation) because that could lead to a user losing huge amounts of work.
+
+## [… And a Sync Engine Problem](https://zero.rocicorp.dev/docs/offline\#-and-a-sync-engine-problem)
+
+Supporting offline writes also requires work in the sync engine.
+
+In Zero, there are a few specific impacts:
+
+1. The Zero client itself can get out of date while offline. On reconnect, the app might reload with a new version of the client. This new version must be able to read and process old data from arbitrarily long ago.
+2. An arbitrarily large number of pending mutations can be built up. These mutations must be replayed on reconnect, which can take a long time.
+3. When processing mutations on server we must consider what should happen if the database or application server are temporarily unavailable. We need to treat that kind of error differently from a validation error.
+
+These problems are surmountable, but significant effort. Their solutions might also be in tension with other goals of the sync engine, like online performance and scalability. These tradeoffs will take time to work through.
+
+## [Zero's Position](https://zero.rocicorp.dev/docs/offline\#zeros-position)
+
+For all of the above reasons, we plan to disable offline writes in Zero for beta.
+
+When the Zero client loses connection to `zero-cache` for several minutes (or when `zero-cache` cannot reach the customer API server), it will enter a special _offline mode_. In this mode, all writes to Zero will throw.
+
+While we recognize that offline writes would be useful for some applications, the reality is that for most of the apps we want to support, the user is online the vast majority of the time and the cost to support offline is extremely high. There is simply more value in making the online experience great first.
+
+We would like to revisit this in the future and really think through how to design APIs and patterns that allow developers to make successful offline-enabled apps. But it's not our priority right now.
+
+## [Dealing with Offline Today](https://zero.rocicorp.dev/docs/offline\#dealing-with-offline-today)
+
+Until Zero disables offline writes automatically, use `useZeroOnline` to detect connection loss and manually disable writes in your UI:
+
+```
+Copyconst {online} = useZeroOnline()
+
+return <button disabled={!online}>Add to cart</button>
+```
+
+... or use the underlying `zero.onOnline` event:
+
+```
+Copyconst unsubscribe = zero.onOnline(online => {
+  console.log('Online:', online)
+})
+```
+
+## [Even More Information](https://zero.rocicorp.dev/docs/offline\#even-more-information)
+
+- [Lies I was Told About Collaborative Editing](https://www.moment.dev/blog/lies-i-was-told-pt-1): a detailed overview of the challenges around offline writes in any collaborative editing system.
+- This [Zero Discord thread](https://discord.com/channels/830183651022471199/1363957701331390669/1364260786108633198) covers some challenges specifically in the context of Zero.
+- [Patchwork](https://www.inkandswitch.com/patchwork/notebook/) by Ink & Switch is new and interesting research around how to support offline writes well in collaborative systems.
+
+[NextIntroduction](https://zero.rocicorp.dev/docs/introduction)
+
+### On this page
+
+[Offline Writes are a UX Problem](https://zero.rocicorp.dev/docs/offline#offline-writes-are-a-ux-problem) [… And a Schema Problem](https://zero.rocicorp.dev/docs/offline#-and-a-schema-problem) [… And a Sync Engine Problem](https://zero.rocicorp.dev/docs/offline#-and-a-sync-engine-problem) [Zero's Position](https://zero.rocicorp.dev/docs/offline#zeros-position) [Dealing with Offline Today](https://zero.rocicorp.dev/docs/offline#dealing-with-offline-today) [Even More Information](https://zero.rocicorp.dev/docs/offline#even-more-information)
+
+[Edit this page on GitHub](https://github.com/rocicorp/zero-docs/blob/main/contents/docs/offline.mdx)

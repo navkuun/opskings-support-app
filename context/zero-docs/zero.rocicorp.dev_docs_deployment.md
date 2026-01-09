@@ -1,0 +1,321 @@
+---
+url: "https://zero.rocicorp.dev/docs/deployment"
+title: "Deploying Zero"
+---
+
+## For AI assistants
+
+ALWAYS read [llms.txt](https://zero.rocicorp.dev/llms.txt) for curated documentation pages and examples.
+
+# Deploying Zero  Copy markdown  \\# Deploying Zero  So you've built your app with Zero - congratulations! Now you need to run it on a server somewhere.  You will need to deploy zero-cache, a Postgres database, your frontend, and your API server.  Zero-cache is made up of two main components:  1\. One or more \*view-syncers\*: serving client queries using a SQLite replica. 2\. One \*replication-manager\*: bridge between the Postgres replication stream and view-syncers.  These components have the following characteristics:  \| \| Replication Manager \| View Syncer \| \| \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- \| \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- \| \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- \| \| Owns replication slot \| ✅ \| ❌ \| \| Serves client queries \| ❌ \| ✅ \| \| Backs up replica \| ✅ (required in multi-node) \| ❌ \| \| Restores from backup \| Optional \| Required \| \| Subscribes to changes \| N/A (produces) \| ✅ \| \| CVR management \| ❌ \| ✅ \| \| Number deployed \| 1 \| N (horizontal scale) \|  You will also need to deploy a Postgres database, your frontend, and your API server for the \[query\](https://zero.rocicorp.dev/docs/queries\#server-setup) and \[mutate\](https://zero.rocicorp.dev/docs/mutators\#server-setup) endpoints.  \\#\# Minimum Viable Strategy  The simplest way to deploy Zero is to run everything on a single node. This is the least expensive way to run Zero, and it can take you surprisingly far.  !\[\](https://zero.rocicorp.dev/images/deployment/single-node.svg)  Here is an example \`docker-compose.yml\` file for a single-node deployment (\[try it out!\](https://github.com/rocicorp/onboarding/tree/2-deploy/docker-compose.single-node.yml)):  \`\`\`yaml services: upstream-db: image: postgres:18 environment: POSTGRES\_DB: zero POSTGRES\_PASSWORD: pass ports: \- 5432:5432 command: postgres -c wal\_level=logical healthcheck: test: pg\_isready interval: 10s  your-api: build: ./your-api ports: \- 3000:3000 environment: \# Your API handles mutations and writes to the PG db \# This should be a pooled connection (e.g. pgbouncer) ZERO\_UPSTREAM\_DB: postgres://postgres:pass@upstream-db:5432/zero depends\_on: upstream-db: condition: service\_healthy  zero-cache: image: rocicorp/zero:0.25.6 ports: \- 4848:4848 environment: \# Used for replication from postgres \# This must be a direct connection (not via pgbouncer) ZERO\_UPSTREAM\_DB: postgres://postgres:pass@upstream-db:5432/zero \# Path to the SQLite replica ZERO\_REPLICA\_FILE: /data/zero.db \# Password used to access the inspector and /statz ZERO\_ADMIN\_PASSWORD: pickanewpassword \# URLs for your API's query and mutate endpoints ZERO\_QUERY\_URL: http://your-api:3000/api/zero/query ZERO\_MUTATE\_URL: http://your-api:3000/api/zero/mutate volumes: \# Disk for the SQLite replica should be high IOPS \- zero-cache-data:/data depends\_on: your-api: condition: service\_started healthcheck: test: curl -f http://localhost:4848/keepalive interval: 5s \`\`\`  \\#\# Maximal Strategy  Once you reach the limits of the single-node deployment, you can split zero-cache into a multi-node topology. This is more expensive to run, but it gives you more flexibility and scalability.  !\[\](https://zero.rocicorp.dev/images/deployment/multi-node.svg)  Here is an example \`docker-compose.yml\` file for a multi-node deployment (\[try it out!\](https://github.com/rocicorp/onboarding/tree/2-deploy/docker-compose.multi-node.yml)):  \`\`\`yaml services: upstream-db: image: postgres:18 environment: POSTGRES\_DB: zero POSTGRES\_PASSWORD: pass ports: \- 5432:5432 command: postgres -c wal\_level=logical healthcheck: test: pg\_isready interval: 10s  your-api: build: ./your-api ports: \- 3000:3000 environment: \# Your API handles mutations and writes to the PG db \# This should be a pooled connection (e.g. pgbouncer) ZERO\_UPSTREAM\_DB: postgres://postgres:pass@upstream-db:5432/zero depends\_on: upstream-db: condition: service\_healthy  \# "Mini S3" (MinIO) provides a working s3://... \`ZERO\_LITESTREAM\_BACKUP\_URL\` \# This should be an S3-compatible object storage service in production. mini-s3: image: minio/minio:latest command: server /data --console-address ":9001" healthcheck: test: curl -f http://localhost:9000/minio/health/live interval: 5s  \# Creates the bucket used by \`ZERO\_LITESTREAM\_BACKUP\_URL\` \# This is only needed for local development. mini-s3-create-bucket: image: minio/mc:latest depends\_on: mini-s3: condition: service\_healthy entrypoint: \- /bin/sh \- -lc \- mc alias set local http://mini-s3:9000 "minioadmin" "minioadmin" && mc mb -p local/zero-backups \|\| true  replication-manager: image: rocicorp/zero:0.25.6 ports: \- 4849:4849 depends\_on: upstream-db: condition: service\_healthy your-api: condition: service\_started mini-s3-create-bucket: condition: service\_started environment: \# Used for replication from postgres \# this must be a direct connection (not via pgbouncer) ZERO\_UPSTREAM\_DB: postgres://postgres:pass@upstream-db:5432/zero \# Used for storing client view records ZERO\_CVR\_DB: postgres://postgres:pass@upstream-db:5432/zero \# Used for storing recent replication log entries ZERO\_CHANGE\_DB: postgres://postgres:pass@upstream-db:5432/zero  \# Path to the SQLite replica ZERO\_REPLICA\_FILE: /data/replica.db \# Password used to access the inspector and /statz ZERO\_ADMIN\_PASSWORD: pickanewpassword  \# Dedicated replication-manager; disable view syncing. ZERO\_NUM\_SYNC\_WORKERS: 0 \# URL for backing up the SQLite replica \# (include a simple version number for future cleanup) \# Required in multi-node so view-syncers can reserve snapshots. ZERO\_LITESTREAM\_BACKUP\_URL: s3://zero-backups/replica-v1  \# S3 creds + Mini S3 endpoint (replication-manager backs up to S3) AWS\_ACCESS\_KEY\_ID: minioadmin AWS\_SECRET\_ACCESS\_KEY: minioadmin ZERO\_LITESTREAM\_ENDPOINT: http://mini-s3:9000 volumes: \# storage for the SQLite replica should be high IOPS \- replication-manager-data:/data healthcheck: test: curl -f http://localhost:4849/keepalive interval: 5s  \# Only one view-syncer in this example, but there can be N. view-syncer: image: rocicorp/zero:0.25.6 ports: \- 4848:4848 depends\_on: replication-manager: condition: service\_healthy environment: \# Used for writing to the upstream database ZERO\_UPSTREAM\_DB: postgres://postgres:pass@upstream-db:5432/zero \# Used for storing client view records ZERO\_CVR\_DB: postgres://postgres:pass@upstream-db:5432/zero \# Used for storing recent replication log entries ZERO\_CHANGE\_DB: postgres://postgres:pass@upstream-db:5432/zero  \# Path to the SQLite replica ZERO\_REPLICA\_FILE: /data/replica.db \# Password used to access the inspector and /statz ZERO\_ADMIN\_PASSWORD: pickanewpassword \# URLs for your API's query and mutate endpoints ZERO\_QUERY\_URL: http://your-api:3000/api/zero/query ZERO\_MUTATE\_URL: http://your-api:3000/api/zero/mutate  \# URL for connecting to the replication-manager ZERO\_CHANGE\_STREAMER\_URI: http://replication-manager:4849  \# S3 creds + Mini S3 endpoint (view-syncers restore from S3 on startup) AWS\_ACCESS\_KEY\_ID: minioadmin AWS\_SECRET\_ACCESS\_KEY: minioadmin ZERO\_LITESTREAM\_ENDPOINT: http://mini-s3:9000 volumes: \# Storage for the SQLite replica should be high IOPS \- view-syncer-data:/data healthcheck: test: curl -f http://localhost:4848/keepalive interval: 5s \`\`\`  The view-syncers in the multi-node topology can be horizontally scaled as needed.  You can also override the number of sync workers \*per view-syncer\* with \`ZERO\_NUM\_SYNC\_WORKERS\`.  \\#\# Replica Lifecycle  Zero-cache is backed by a SQLite replica of your database. The SQLite replica uses upstream Postgres as the source of truth. If the replica is missing or a litestream restore fails, the replication-manager will resync the replica from upstream on the next start.  \\#\# Performance  You want to optimize disk IOPS for the serving replica, since this is the file that is read by the view-syncers to run IVM-based queries, and one of the main bottlenecks for query hydration performance. View syncer's IVM is "hydrate once, then incrementally push diffs" against the ZQL pipeline, so performance is mostly about:  1\. How fast the server can materialize a subscription the first time (hydration). 2\. How fast it can keep it up to date (IVM advancement).  Different bottlenecks dominate each phase.  \\#\#\# Hydration  \\* \*\*SQLite read cost\*\*: hydration is essentially "run the query against the replica and stream all matching rows into the pipeline", so it's bounded by \[SQLite scan/index performance\](https://zero.rocicorp.dev/docs/debug/inspector\#analyzing-queries) + result size. \\* \*\*Churn / TTL eviction\*\*: if queries get \[evicted\](https://zero.rocicorp.dev/docs/reading-data\#query-caching) (inactive long enough) and then get re-requested, you pay hydration again. \\* \*\*Custom query transform latency\*\*: the HTTP request from zero-cache to your API at \[\`ZERO\_QUERY\_URL\`\](https://zero.rocicorp.dev/docs/zero-cache-config\#query-url) does transform/authorization for queries, adding network + CPU before hydration starts.  \\#\#\# IVM advancement  \\* \*\*Replication throughput\*\*: the view-syncer can only advance when the replicator commits and emits version-ready. If upstream replication is behind, query advancement is capped by how fast the replica advances. \\* \*\*Change volume per transaction\*\*: advancement cost scales with number of changed \*rows\*, not number of queries. \\* \*\*Circuit breaker behavior\*\*: if advancement looks like it'll take longer than rehydrating, zero-cache intentionally aborts and resets pipelines (which trades "slow incremental" for "rehydrate").  \\#\#\# System-level  \\* \*\*Number of client groups per sync worker\*\*: each client group has its own pipelines; CPU and memory per group limits how many can be "fast" at once. Since Node is single-threaded, one client group can technically starve other groups. This is handled with time slicing and can be configured with the yield parameters, e.g. \[\`ZERO\_YIELD\_THRESHOLD\_MS\`\](https://zero.rocicorp.dev/docs/zero-cache-config\#yield-threshold-ms). \\* \*\*SQLite concurrency limits\*\*: it's designed here for one writer (replicator) + many concurrent readers (view-syncer snapshots). It scales, but very heavy read workloads can still contend on cache/IO. \\* \*\*Network to clients\*\*: even if IVM is fast, it can take time to send data over websocket. This can be improved by using CDNs (like CloudFront) that improve routing. \\* \*\*Network between services\*\*: for a single-region deployment, all services should be colocated.  \\#\# Load Balancing  View syncers must be publicly reachable by port 4848 by clients, and the replication-manager can have internal networking with the view-syncers on port 4849.  The external load balancer must support websockets, and can use the health check at \`/keepalive\` to verify view-syncers and replication-managers are healthy.  \\#\#\# Sticky Sessions  View syncers are designed to be disposable, but since they keep hydrated query pipelines in memory, it's important to try to keep clients connected to the same instance. If a reconnect/refresh lands on a different instance, that instance usually has to rehydrate instead of reusing warm state.  If you are seeing a lot of Rehome errors, you may need to enable sticky sessions. Two instances can end up doing redundant hydration/advancement work for the same \`clientGroupID\`, and the "loser" will eventually force clients to reconnect.  \\#\# Rolling Updates  You can roll out updates in the following order:  1\. Run the database migrations (using the \[expand/migrate/contract pattern\](https://zero.rocicorp.dev/docs/schema\#schema-change-process)) and wait for replication to catch up. 2\. Upgrade replication-manager. 3\. Upgrade view-syncers (if they come up before the replication-manager, they'll sit in retry loops until the manager is updated). 4\. Update the API servers (your mutate and query endpoints). 5\. Update client(s).  \> \*\*The replication-manager has a different upgrade pattern\*\*: The replication-manager requires a full handoff, since it is the single owner of the changelog DB state. The view-syncers are simply drained and reconnected, since they are designed to be disposable.  \\#\#\# Client/Server Version Compatibility  Servers are compatible with any client of same major version, and with clients one major version back. So for example:  \\* Server \`0.2.\*\` is compatible with client \`0.2.\*\` \\* Server \`0.2.\*\` is compatible with client \`0.1.\*\` \\* Server \`2.\*.\*\` is compatible with client \`2.\*.\*\` \\* Server \`2.\*.\*\` is compatible with client \`1.\*.\*\`  To upgrade Zero to a new major version, first deploy the new zero-cache, then the new frontend.  \\#\#\# Configuration  The zero-cache image is configured via environment variables. See \[zero-cache Config\](https://zero.rocicorp.dev/docs/zero-cache-config) for available options.      \#\# Or, for AI assistants    ALWAYS read [llms.txt](https://zero.rocicorp.dev/llms.txt) for curated documentation pages and examples.
+
+So you've built your app with Zero - congratulations! Now you need to run it on a server somewhere.
+
+You will need to deploy zero-cache, a Postgres database, your frontend, and your API server.
+
+Zero-cache is made up of two main components:
+
+1. One or more _view-syncers_: serving client queries using a SQLite replica.
+2. One _replication-manager_: bridge between the Postgres replication stream and view-syncers.
+
+These components have the following characteristics:
+
+|  | Replication Manager | View Syncer |
+| --- | --- | --- |
+| Owns replication slot | ✅ | ❌ |
+| Serves client queries | ❌ | ✅ |
+| Backs up replica | ✅ (required in multi-node) | ❌ |
+| Restores from backup | Optional | Required |
+| Subscribes to changes | N/A (produces) | ✅ |
+| CVR management | ❌ | ✅ |
+| Number deployed | 1 | N (horizontal scale) |
+
+You will also need to deploy a Postgres database, your frontend, and your API server for the [query](https://zero.rocicorp.dev/docs/queries#server-setup) and [mutate](https://zero.rocicorp.dev/docs/mutators#server-setup) endpoints.
+
+## [Minimum Viable Strategy](https://zero.rocicorp.dev/docs/deployment\#minimum-viable-strategy)
+
+The simplest way to deploy Zero is to run everything on a single node. This is the least expensive way to run Zero, and it can take you surprisingly far.
+
+![Image](https://zero.rocicorp.dev/images/deployment/single-node.svg)
+
+Here is an example `docker-compose.yml` file for a single-node deployment ( [try it out!](https://github.com/rocicorp/onboarding/tree/2-deploy/docker-compose.single-node.yml)):
+
+```
+Copyservices:
+  upstream-db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: zero
+      POSTGRES_PASSWORD: pass
+    ports:
+      - 5432:5432
+    command: postgres -c wal_level=logical
+    healthcheck:
+      test: pg_isready
+      interval: 10s
+
+  your-api:
+    build: ./your-api
+    ports:
+      - 3000:3000
+    environment:
+      # Your API handles mutations and writes to the PG db
+      # This should be a pooled connection (e.g. pgbouncer)
+      ZERO_UPSTREAM_DB: postgres://postgres:pass@upstream-db:5432/zero
+    depends_on:
+      upstream-db:
+        condition: service_healthy
+
+  zero-cache:
+    image: rocicorp/zero:0.25.6
+    ports:
+      - 4848:4848
+    environment:
+      # Used for replication from postgres
+      # This must be a direct connection (not via pgbouncer)
+      ZERO_UPSTREAM_DB: postgres://postgres:pass@upstream-db:5432/zero
+      # Path to the SQLite replica
+      ZERO_REPLICA_FILE: /data/zero.db
+      # Password used to access the inspector and /statz
+      ZERO_ADMIN_PASSWORD: pickanewpassword
+      # URLs for your API's query and mutate endpoints
+      ZERO_QUERY_URL: http://your-api:3000/api/zero/query
+      ZERO_MUTATE_URL: http://your-api:3000/api/zero/mutate
+    volumes:
+      # Disk for the SQLite replica should be high IOPS
+      - zero-cache-data:/data
+    depends_on:
+      your-api:
+        condition: service_started
+    healthcheck:
+      test: curl -f http://localhost:4848/keepalive
+      interval: 5s
+```
+
+## [Maximal Strategy](https://zero.rocicorp.dev/docs/deployment\#maximal-strategy)
+
+Once you reach the limits of the single-node deployment, you can split zero-cache into a multi-node topology. This is more expensive to run, but it gives you more flexibility and scalability.
+
+![Image](https://zero.rocicorp.dev/images/deployment/multi-node.svg)
+
+Here is an example `docker-compose.yml` file for a multi-node deployment ( [try it out!](https://github.com/rocicorp/onboarding/tree/2-deploy/docker-compose.multi-node.yml)):
+
+```
+Copyservices:
+  upstream-db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: zero
+      POSTGRES_PASSWORD: pass
+    ports:
+      - 5432:5432
+    command: postgres -c wal_level=logical
+    healthcheck:
+      test: pg_isready
+      interval: 10s
+
+  your-api:
+    build: ./your-api
+    ports:
+      - 3000:3000
+    environment:
+      # Your API handles mutations and writes to the PG db
+      # This should be a pooled connection (e.g. pgbouncer)
+      ZERO_UPSTREAM_DB: postgres://postgres:pass@upstream-db:5432/zero
+    depends_on:
+      upstream-db:
+        condition: service_healthy
+
+  # "Mini S3" (MinIO) provides a working s3://... `ZERO_LITESTREAM_BACKUP_URL`
+  # This should be an S3-compatible object storage service in production.
+  mini-s3:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: curl -f http://localhost:9000/minio/health/live
+      interval: 5s
+
+  # Creates the bucket used by `ZERO_LITESTREAM_BACKUP_URL`
+  # This is only needed for local development.
+  mini-s3-create-bucket:
+    image: minio/mc:latest
+    depends_on:
+      mini-s3:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - mc alias set local http://mini-s3:9000 "minioadmin" "minioadmin" &&
+        mc mb -p local/zero-backups || true
+
+  replication-manager:
+    image: rocicorp/zero:0.25.6
+    ports:
+      - 4849:4849
+    depends_on:
+      upstream-db:
+        condition: service_healthy
+      your-api:
+        condition: service_started
+      mini-s3-create-bucket:
+        condition: service_started
+    environment:
+      # Used for replication from postgres
+      # this must be a direct connection (not via pgbouncer)
+      ZERO_UPSTREAM_DB: postgres://postgres:pass@upstream-db:5432/zero
+      # Used for storing client view records
+      ZERO_CVR_DB: postgres://postgres:pass@upstream-db:5432/zero
+      # Used for storing recent replication log entries
+      ZERO_CHANGE_DB: postgres://postgres:pass@upstream-db:5432/zero
+
+      # Path to the SQLite replica
+      ZERO_REPLICA_FILE: /data/replica.db
+      # Password used to access the inspector and /statz
+      ZERO_ADMIN_PASSWORD: pickanewpassword
+
+      # Dedicated replication-manager; disable view syncing.
+      ZERO_NUM_SYNC_WORKERS: 0
+      # URL for backing up the SQLite replica
+      # (include a simple version number for future cleanup)
+      # Required in multi-node so view-syncers can reserve snapshots.
+      ZERO_LITESTREAM_BACKUP_URL: s3://zero-backups/replica-v1
+
+      # S3 creds + Mini S3 endpoint (replication-manager backs up to S3)
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      ZERO_LITESTREAM_ENDPOINT: http://mini-s3:9000
+    volumes:
+      # storage for the SQLite replica should be high IOPS
+      - replication-manager-data:/data
+    healthcheck:
+      test: curl -f http://localhost:4849/keepalive
+      interval: 5s
+
+  # Only one view-syncer in this example, but there can be N.
+  view-syncer:
+    image: rocicorp/zero:0.25.6
+    ports:
+      - 4848:4848
+    depends_on:
+      replication-manager:
+        condition: service_healthy
+    environment:
+      # Used for writing to the upstream database
+      ZERO_UPSTREAM_DB: postgres://postgres:pass@upstream-db:5432/zero
+      # Used for storing client view records
+      ZERO_CVR_DB: postgres://postgres:pass@upstream-db:5432/zero
+      # Used for storing recent replication log entries
+      ZERO_CHANGE_DB: postgres://postgres:pass@upstream-db:5432/zero
+
+      # Path to the SQLite replica
+      ZERO_REPLICA_FILE: /data/replica.db
+      # Password used to access the inspector and /statz
+      ZERO_ADMIN_PASSWORD: pickanewpassword
+      # URLs for your API's query and mutate endpoints
+      ZERO_QUERY_URL: http://your-api:3000/api/zero/query
+      ZERO_MUTATE_URL: http://your-api:3000/api/zero/mutate
+
+      # URL for connecting to the replication-manager
+      ZERO_CHANGE_STREAMER_URI: http://replication-manager:4849
+
+      # S3 creds + Mini S3 endpoint (view-syncers restore from S3 on startup)
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      ZERO_LITESTREAM_ENDPOINT: http://mini-s3:9000
+    volumes:
+      # Storage for the SQLite replica should be high IOPS
+      - view-syncer-data:/data
+    healthcheck:
+      test: curl -f http://localhost:4848/keepalive
+      interval: 5s
+```
+
+The view-syncers in the multi-node topology can be horizontally scaled as needed.
+
+You can also override the number of sync workers _per view-syncer_ with `ZERO_NUM_SYNC_WORKERS`.
+
+## [Replica Lifecycle](https://zero.rocicorp.dev/docs/deployment\#replica-lifecycle)
+
+Zero-cache is backed by a SQLite replica of your database. The SQLite replica
+uses upstream Postgres as the source of truth. If the replica is missing or a
+litestream restore fails, the replication-manager will resync the replica from
+upstream on the next start.
+
+## [Performance](https://zero.rocicorp.dev/docs/deployment\#performance)
+
+You want to optimize disk IOPS for the serving replica, since this is the file that is read by the view-syncers to run IVM-based queries, and one of the main bottlenecks for query hydration performance.
+View syncer's IVM is "hydrate once, then incrementally push diffs" against the ZQL pipeline, so performance is mostly about:
+
+1. How fast the server can materialize a subscription the first time (hydration).
+2. How fast it can keep it up to date (IVM advancement).
+
+Different bottlenecks dominate each phase.
+
+### [Hydration](https://zero.rocicorp.dev/docs/deployment\#hydration)
+
+- **SQLite read cost**: hydration is essentially "run the query against the replica and stream all matching rows into the pipeline", so it's bounded by [SQLite scan/index performance](https://zero.rocicorp.dev/docs/debug/inspector#analyzing-queries) \+ result size.
+- **Churn / TTL eviction**: if queries get [evicted](https://zero.rocicorp.dev/docs/reading-data#query-caching) (inactive long enough) and then get re-requested, you pay hydration again.
+- **Custom query transform latency**: the HTTP request from zero-cache to your API at [`ZERO_QUERY_URL`](https://zero.rocicorp.dev/docs/zero-cache-config#query-url) does transform/authorization for queries, adding network + CPU before hydration starts.
+
+### [IVM advancement](https://zero.rocicorp.dev/docs/deployment\#ivm-advancement)
+
+- **Replication throughput**: the view-syncer can only advance when the replicator commits and emits version-ready. If upstream replication is behind, query advancement is capped by how fast the replica advances.
+- **Change volume per transaction**: advancement cost scales with number of changed _rows_, not number of queries.
+- **Circuit breaker behavior**: if advancement looks like it'll take longer than rehydrating, zero-cache intentionally aborts and resets pipelines (which trades "slow incremental" for "rehydrate").
+
+### [System-level](https://zero.rocicorp.dev/docs/deployment\#system-level)
+
+- **Number of client groups per sync worker**: each client group has its own pipelines; CPU and memory per group limits how many can be "fast" at once. Since Node is single-threaded, one client group can technically starve other groups. This is handled with time slicing and can be configured with the yield parameters, e.g. [`ZERO_YIELD_THRESHOLD_MS`](https://zero.rocicorp.dev/docs/zero-cache-config#yield-threshold-ms).
+- **SQLite concurrency limits**: it's designed here for one writer (replicator) + many concurrent readers (view-syncer snapshots). It scales, but very heavy read workloads can still contend on cache/IO.
+- **Network to clients**: even if IVM is fast, it can take time to send data over websocket. This can be improved by using CDNs (like CloudFront) that improve routing.
+- **Network between services**: for a single-region deployment, all services should be colocated.
+
+## [Load Balancing](https://zero.rocicorp.dev/docs/deployment\#load-balancing)
+
+View syncers must be publicly reachable by port 4848 by clients, and the replication-manager can have internal networking with the view-syncers on port 4849.
+
+The external load balancer must support websockets, and can use the health check at `/keepalive` to verify view-syncers and replication-managers are healthy.
+
+### [Sticky Sessions](https://zero.rocicorp.dev/docs/deployment\#sticky-sessions)
+
+View syncers are designed to be disposable, but since they keep hydrated query pipelines in memory, it's important to try to keep clients connected to the same instance.
+If a reconnect/refresh lands on a different instance, that instance usually has to rehydrate instead of reusing warm state.
+
+If you are seeing a lot of Rehome errors, you may need to enable sticky sessions. Two instances can end up doing redundant hydration/advancement work for the same `clientGroupID`, and the "loser" will eventually force clients to reconnect.
+
+## [Rolling Updates](https://zero.rocicorp.dev/docs/deployment\#rolling-updates)
+
+You can roll out updates in the following order:
+
+1. Run the database migrations (using the [expand/migrate/contract pattern](https://zero.rocicorp.dev/docs/schema#schema-change-process)) and wait for replication to catch up.
+2. Upgrade replication-manager.
+3. Upgrade view-syncers (if they come up before the replication-manager, they'll sit in retry loops until the manager is updated).
+4. Update the API servers (your mutate and query endpoints).
+5. Update client(s).
+
+[😬The replication-manager has a different upgrade pattern](https://zero.rocicorp.dev/docs/deployment#replication-manager-upgrade)
+
+### [Client/Server Version Compatibility](https://zero.rocicorp.dev/docs/deployment\#clientserver-version-compatibility)
+
+Servers are compatible with any client of same major version, and with clients one major version back. So for example:
+
+- Server `0.2.*` is compatible with client `0.2.*`
+- Server `0.2.*` is compatible with client `0.1.*`
+- Server `2.*.*` is compatible with client `2.*.*`
+- Server `2.*.*` is compatible with client `1.*.*`
+
+To upgrade Zero to a new major version, first deploy the new zero-cache, then the new frontend.
+
+### [Configuration](https://zero.rocicorp.dev/docs/deployment\#configuration)
+
+The zero-cache image is configured via environment variables. See [zero-cache Config](https://zero.rocicorp.dev/docs/zero-cache-config) for available options.
+
+[PreviousCommunity](https://zero.rocicorp.dev/docs/community)
+
+[NextConfiguration](https://zero.rocicorp.dev/docs/zero-cache-config)
+
+### On this page
+
+[Minimum Viable Strategy](https://zero.rocicorp.dev/docs/deployment#minimum-viable-strategy) [Maximal Strategy](https://zero.rocicorp.dev/docs/deployment#maximal-strategy) [Replica Lifecycle](https://zero.rocicorp.dev/docs/deployment#replica-lifecycle) [Performance](https://zero.rocicorp.dev/docs/deployment#performance) [Hydration](https://zero.rocicorp.dev/docs/deployment#hydration) [IVM advancement](https://zero.rocicorp.dev/docs/deployment#ivm-advancement) [System-level](https://zero.rocicorp.dev/docs/deployment#system-level) [Load Balancing](https://zero.rocicorp.dev/docs/deployment#load-balancing) [Sticky Sessions](https://zero.rocicorp.dev/docs/deployment#sticky-sessions) [Rolling Updates](https://zero.rocicorp.dev/docs/deployment#rolling-updates) [Client/Server Version Compatibility](https://zero.rocicorp.dev/docs/deployment#clientserver-version-compatibility) [Configuration](https://zero.rocicorp.dev/docs/deployment#configuration)
+
+[Edit this page on GitHub](https://github.com/rocicorp/zero-docs/blob/main/contents/docs/deployment.mdx)
