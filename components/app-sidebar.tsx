@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -22,6 +23,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { NavUser } from "@/components/nav-user"
+import { authClient } from "@/lib/auth-client"
 
 type NavItem = {
   title: string
@@ -118,6 +121,7 @@ function CrownSidebarMenuLink({
 
 export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const { data: session } = authClient.useSession()
 
   return (
     <Sidebar
@@ -171,6 +175,18 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-sidebar-border/60 border-t px-4 py-4 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-2">
+        {session?.user ? (
+          <NavUser
+            user={{
+              name: session.user.name ?? "User",
+              email: session.user.email,
+              avatar: session.user.image,
+            }}
+          />
+        ) : null}
+      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>

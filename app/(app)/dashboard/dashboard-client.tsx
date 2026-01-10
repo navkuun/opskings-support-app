@@ -5,10 +5,12 @@ import { useQuery } from "@rocicorp/zero/react"
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from "recharts"
 import type { PieLabelRenderProps } from "recharts"
 import { useRouter, useSearchParams } from "next/navigation"
+import { FunnelIcon, MinusIcon, TrendDownIcon, TrendUpIcon, XIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   type ChartConfig,
   ChartContainer,
@@ -259,12 +261,18 @@ function KpiDelta({
       : direction === "down"
         ? "bg-rose-500/24 text-rose-500"
         : "bg-muted text-muted-foreground"
-  const arrow = direction === "up" ? "▲" : direction === "down" ? "▼" : "•"
+  const icon =
+    direction === "up"
+      ? TrendUpIcon
+      : direction === "down"
+        ? TrendDownIcon
+        : MinusIcon
+  const Icon = icon
 
   return (
     <div className="flex flex-col items-end gap-1">
       <Badge className={cn("h-7 border-none px-2.5 text-xs font-semibold", classes)}>
-        <span className="mr-1 text-[11px]">{arrow}</span>
+        <Icon aria-hidden="true" />
         {formatPercent(value)}
       </Badge>
       <span className="text-[11px] text-muted-foreground">{label}</span>
@@ -281,6 +289,22 @@ export function DashboardClient() {
   const assignedToParam = searchParams.get("assignedTo") ?? "any"
   const ticketTypeParam = searchParams.get("ticketTypeId") ?? "any"
   const priorityParam = searchParams.get("priority") ?? "any"
+
+  const [filtersOpen, setFiltersOpen] = React.useState(false)
+  const [draftFrom, setDraftFrom] = React.useState(from)
+  const [draftTo, setDraftTo] = React.useState(to)
+  const [draftAssignedTo, setDraftAssignedTo] = React.useState(assignedToParam)
+  const [draftTicketTypeId, setDraftTicketTypeId] = React.useState(ticketTypeParam)
+  const [draftPriority, setDraftPriority] = React.useState(priorityParam)
+
+  React.useEffect(() => {
+    if (!filtersOpen) return
+    setDraftFrom(from)
+    setDraftTo(to)
+    setDraftAssignedTo(assignedToParam)
+    setDraftTicketTypeId(ticketTypeParam)
+    setDraftPriority(priorityParam)
+  }, [assignedToParam, filtersOpen, from, priorityParam, ticketTypeParam, to])
 
   const createdFrom = React.useMemo(() => parseDateToUtcMs(from, "start"), [from])
   const createdTo = React.useMemo(() => parseDateToUtcMs(to, "end"), [to])
@@ -483,6 +507,25 @@ export function DashboardClient() {
     ticketTypesResult.type !== "complete" ||
     teamMembersResult.type !== "complete"
 
+  const resetDraftFilters = React.useCallback(() => {
+    setDraftFrom(DEFAULT_FROM)
+    setDraftTo(DEFAULT_TO)
+    setDraftAssignedTo("any")
+    setDraftTicketTypeId("any")
+    setDraftPriority("any")
+  }, [])
+
+  const applyDraftFilters = React.useCallback(() => {
+    updateSearchParams(router, searchParams, {
+      from: draftFrom.trim() ? draftFrom : null,
+      to: draftTo.trim() ? draftTo : null,
+      assignedTo: draftAssignedTo === "any" ? null : draftAssignedTo,
+      ticketTypeId: draftTicketTypeId === "any" ? null : draftTicketTypeId,
+      priority: draftPriority === "any" ? null : draftPriority,
+    })
+    setFiltersOpen(false)
+  }, [draftAssignedTo, draftFrom, draftPriority, draftTicketTypeId, draftTo, router, searchParams])
+
   return (
     <div className="w-full space-y-6 px-6 py-8">
       <div className="space-y-1">
@@ -492,152 +535,155 @@ export function DashboardClient() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <div className="grid gap-4 md:grid-cols-5">
-              <Field>
-                <FieldLabel htmlFor="dash-from">From</FieldLabel>
-                <Input
-                  id="dash-from"
-                  type="date"
-                  value={from}
-                  onChange={(e) =>
-                    updateSearchParams(router, searchParams, {
-                      from: e.target.value || null,
-                    })
-                  }
-                />
-              </Field>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-xs text-muted-foreground">
+          Showing {formatCompactNumber(computed.total)} tickets.
+          {isLoading ? " Loading…" : ""}
+        </div>
 
-              <Field>
-                <FieldLabel htmlFor="dash-to">To</FieldLabel>
-                <Input
-                  id="dash-to"
-                  type="date"
-                  value={to}
-                  onChange={(e) =>
-                    updateSearchParams(router, searchParams, {
-                      to: e.target.value || null,
-                    })
-                  }
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel>Team member</FieldLabel>
-                <Select
-                  items={teamMemberItems}
-                  value={assignedToParam}
-                  onValueChange={(v) =>
-                    updateSearchParams(router, searchParams, {
-                      assignedTo: v === "any" ? null : v,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectGroup>
-                      <SelectItem value="any">Any</SelectItem>
-                      <SelectItem value="none">Unassigned</SelectItem>
-                      {teamMembers.map((tm) => (
-                        <SelectItem key={tm.id} value={String(tm.id)}>
-                          {tm.username}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field>
-                <FieldLabel>Ticket type</FieldLabel>
-                <Select
-                  items={ticketTypeItems}
-                  value={ticketTypeParam}
-                  onValueChange={(v) =>
-                    updateSearchParams(router, searchParams, {
-                      ticketTypeId: v === "any" ? null : v,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectGroup>
-                      <SelectItem value="any">Any</SelectItem>
-                      {ticketTypes.map((tt) => (
-                        <SelectItem key={tt.id} value={String(tt.id)}>
-                          {tt.typeName}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field>
-                <FieldLabel>Priority</FieldLabel>
-                <Select
-                  items={priorityItems}
-                  value={priorityParam}
-                  onValueChange={(v) =>
-                    updateSearchParams(router, searchParams, {
-                      priority: v === "any" ? null : v,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectGroup>
-                      <SelectItem value="any">Any</SelectItem>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <div className="text-xs text-muted-foreground">
-                  Showing {formatCompactNumber(computed.total)} tickets.
-                  {isLoading ? " Loading…" : ""}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                onClick={() =>
-                  updateSearchParams(router, searchParams, {
-                    from: DEFAULT_FROM,
-                    to: DEFAULT_TO,
-                    assignedTo: null,
-                    ticketTypeId: null,
-                    priority: null,
-                  })
-                }
+        <Popover
+          open={filtersOpen}
+          onOpenChange={(open) => setFiltersOpen(open)}
+        >
+          <PopoverTrigger render={<Button variant="outline" size="sm" />}>
+            <FunnelIcon />
+            Filters
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-[92vw] max-w-sm p-0">
+            <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+              <div className="text-sm font-semibold">Filters</div>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setFiltersOpen(false)}
               >
-                Reset
+                <XIcon />
+                <span className="sr-only">Close</span>
               </Button>
             </div>
-          </FieldGroup>
-          {metricsError ? (
-            <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {metricsError}
+
+            <div className="px-4 py-3">
+              <FieldGroup>
+                <div className="grid gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor="dash-from">From</FieldLabel>
+                      <Input
+                        id="dash-from"
+                        type="date"
+                        value={draftFrom}
+                        onChange={(e) => setDraftFrom(e.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="dash-to">To</FieldLabel>
+                      <Input
+                        id="dash-to"
+                        type="date"
+                        value={draftTo}
+                        onChange={(e) => setDraftTo(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+
+                  <Field>
+                    <FieldLabel>Team member</FieldLabel>
+                    <Select
+                      items={teamMemberItems}
+                      value={draftAssignedTo}
+                      onValueChange={(v) => setDraftAssignedTo(v ?? "any")}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        <SelectGroup>
+                          <SelectItem value="any">Any</SelectItem>
+                          <SelectItem value="none">Unassigned</SelectItem>
+                          {teamMembers.map((tm) => (
+                            <SelectItem key={tm.id} value={String(tm.id)}>
+                              {tm.username}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel>Ticket type</FieldLabel>
+                    <Select
+                      items={ticketTypeItems}
+                      value={draftTicketTypeId}
+                      onValueChange={(v) => setDraftTicketTypeId(v ?? "any")}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        <SelectGroup>
+                          <SelectItem value="any">Any</SelectItem>
+                          {ticketTypes.map((tt) => (
+                            <SelectItem key={tt.id} value={String(tt.id)}>
+                              {tt.typeName}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel>Priority</FieldLabel>
+                    <Select
+                      items={priorityItems}
+                      value={draftPriority}
+                      onValueChange={(v) => setDraftPriority(v ?? "any")}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        <SelectGroup>
+                          <SelectItem value="any">Any</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </FieldGroup>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+
+            <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+              <Button variant="outline" size="sm" onClick={resetDraftFilters}>
+                Reset
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFiltersOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={applyDraftFilters}>
+                  Apply
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {metricsError ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {metricsError}
+        </div>
+      ) : null}
 
       <CardGroup className="grid grid-cols-1 divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
         <KpiCard
