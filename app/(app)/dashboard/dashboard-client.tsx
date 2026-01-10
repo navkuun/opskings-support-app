@@ -5,7 +5,17 @@ import { useQuery } from "@rocicorp/zero/react"
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from "recharts"
 import type { PieLabelRenderProps } from "recharts"
 import { useRouter, useSearchParams } from "next/navigation"
-import { FunnelIcon, MinusIcon, TrendDownIcon, TrendUpIcon, XIcon } from "@phosphor-icons/react"
+import {
+  CalendarBlankIcon,
+  FlagIcon,
+  FunnelIcon,
+  MinusIcon,
+  TicketIcon,
+  TrendDownIcon,
+  TrendUpIcon,
+  UserCircleIcon,
+  XIcon,
+} from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +27,6 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -57,6 +66,25 @@ function formatCompactNumber(value: number) {
 function formatHours(value: number) {
   if (!Number.isFinite(value)) return "—"
   return `${value.toFixed(1)} hrs`
+}
+
+function formatTeamMemberLabel(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return value
+
+  return trimmed
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      const letters = word.replace(/[^A-Za-z]/g, "")
+      const isAllUpper = letters !== "" && letters === letters.toUpperCase()
+      const isAllLower = letters !== "" && letters === letters.toLowerCase()
+      const rest = isAllUpper || isAllLower ? word.slice(1).toLowerCase() : word.slice(1)
+
+      return `${word[0]?.toUpperCase() ?? ""}${rest}`
+    })
+    .join(" ")
 }
 
 function formatRating(value: number) {
@@ -171,6 +199,26 @@ function SegmentedButtons<T extends string>({
   )
 }
 
+function FilterRow({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+        <Icon className="size-4 shrink-0" aria-hidden="true" />
+        <span className="truncate">{label}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 function KpiCard({
   title,
   value,
@@ -191,7 +239,7 @@ function KpiCard({
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-1">
+      <CardContent className="flex flex-1 flex-col gap-1">
         <div className="flex items-start justify-between gap-3">
           <div
             className={cn(
@@ -203,7 +251,7 @@ function KpiCard({
           </div>
           {right ? <div>{right}</div> : null}
         </div>
-        <div className="text-xs text-muted-foreground">{description}</div>
+        <div className="mt-auto text-xs text-muted-foreground">{description}</div>
       </CardContent>
     </Card>
   )
@@ -306,7 +354,10 @@ export function DashboardClient() {
     () => [
       { value: "any", label: "Any" },
       { value: "none", label: "Unassigned" },
-      ...teamMembers.map((tm) => ({ value: String(tm.id), label: tm.username })),
+      ...teamMembers.map((tm) => ({
+        value: String(tm.id),
+        label: formatTeamMemberLabel(tm.username),
+      })),
     ],
     [teamMembers],
   )
@@ -523,78 +574,73 @@ export function DashboardClient() {
             <FunnelIcon />
             Filters
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-[92vw] max-w-sm p-0">
-            <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
-              <div className="text-sm font-semibold">Filters</div>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => setFiltersOpen(false)}
-              >
-                <XIcon />
-                <span className="sr-only">Close</span>
-              </Button>
-            </div>
+          <PopoverContent align="start"  className="w-[92vw] max-w-sm">
+            <div className="-mx-4 -my-4 divide-y">
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="text-sm font-semibold">Filters</div>
+                <Button variant="ghost" size="icon-xs" onClick={() => setFiltersOpen(false)}>
+                  <XIcon />
+                  <span className="sr-only">Close</span>
+                </Button>
+              </div>
 
-            <div className="px-4 py-3">
-              <FieldGroup>
-                <div className="grid gap-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field>
-                      <FieldLabel htmlFor="dash-from">From</FieldLabel>
-                      <Input
-                        id="dash-from"
-                        type="date"
-                        value={draftFrom}
-                        onChange={(e) => setDraftFrom(e.target.value)}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="dash-to">To</FieldLabel>
-                      <Input
-                        id="dash-to"
-                        type="date"
-                        value={draftTo}
-                        onChange={(e) => setDraftTo(e.target.value)}
-                      />
-                    </Field>
-                  </div>
+              <div className="px-4 py-3">
+                <div className="space-y-3">
+                  <FilterRow icon={CalendarBlankIcon} label="From">
+                    <Input
+                      id="dash-from"
+                      size="sm"
+                      className="w-44"
+                      type="date"
+                      value={draftFrom}
+                      onChange={(e) => setDraftFrom(e.target.value)}
+                    />
+                  </FilterRow>
 
-                  <Field>
-                    <FieldLabel>Team member</FieldLabel>
+                  <FilterRow icon={CalendarBlankIcon} label="To">
+                    <Input
+                      id="dash-to"
+                      size="sm"
+                      className="w-44"
+                      type="date"
+                      value={draftTo}
+                      onChange={(e) => setDraftTo(e.target.value)}
+                    />
+                  </FilterRow>
+
+                  <FilterRow icon={UserCircleIcon} label="Team member">
                     <Select
                       items={teamMemberItems}
                       value={draftAssignedTo}
                       onValueChange={(v) => setDraftAssignedTo(v ?? "any")}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-44">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent align="start">
+                      <SelectContent align="end">
                         <SelectGroup>
                           <SelectItem value="any">Any</SelectItem>
                           <SelectItem value="none">Unassigned</SelectItem>
                           {teamMembers.map((tm) => (
                             <SelectItem key={tm.id} value={String(tm.id)}>
-                              {tm.username}
+                              {formatTeamMemberLabel(tm.username)}
                             </SelectItem>
                           ))}
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                  </Field>
+                  </FilterRow>
 
-                  <Field>
-                    <FieldLabel>Ticket type</FieldLabel>
+                  <FilterRow icon={TicketIcon} label="Ticket type">
                     <Select
                       items={ticketTypeItems}
                       value={draftTicketTypeId}
                       onValueChange={(v) => setDraftTicketTypeId(v ?? "any")}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-44">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent align="start">
+                      <SelectContent align="end">
                         <SelectGroup>
                           <SelectItem value="any">Any</SelectItem>
                           {ticketTypes.map((tt) => (
@@ -605,19 +651,18 @@ export function DashboardClient() {
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                  </Field>
+                  </FilterRow>
 
-                  <Field>
-                    <FieldLabel>Priority</FieldLabel>
+                  <FilterRow icon={FlagIcon} label="Priority">
                     <Select
                       items={priorityItems}
                       value={draftPriority}
                       onValueChange={(v) => setDraftPriority(v ?? "any")}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-44">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent align="start">
+                      <SelectContent align="end">
                         <SelectGroup>
                           <SelectItem value="any">Any</SelectItem>
                           <SelectItem value="low">Low</SelectItem>
@@ -627,26 +672,22 @@ export function DashboardClient() {
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                  </Field>
+                  </FilterRow>
                 </div>
-              </FieldGroup>
-            </div>
+              </div>
 
-            <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
-              <Button variant="outline" size="sm" onClick={resetDraftFilters}>
-                Reset
-              </Button>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setFiltersOpen(false)}
-                >
-                  Cancel
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <Button variant="outline" size="sm" onClick={resetDraftFilters}>
+                  Reset
                 </Button>
-                <Button size="sm" onClick={applyDraftFilters}>
-                  Apply
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setFiltersOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={applyDraftFilters}>
+                    Apply
+                  </Button>
+                </div>
               </div>
             </div>
           </PopoverContent>
@@ -670,7 +711,7 @@ export function DashboardClient() {
         <KpiCard
           title="Open tickets"
           value={formatCompactNumber(computed.open)}
-          description="Open + in progress."
+          description="In progress tickets"
           right={<KpiDelta value={computed.openMoM} isLoading={isLoading} />}
           isLoading={isLoading}
         />

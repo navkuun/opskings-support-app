@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Geist_Mono, Anybody } from "next/font/google"
 import "./globals.css"
+import { AnchoredToastProvider, ToastProvider } from "@/components/ui/toast"
 import { RiZeroProvider } from "./zero-provider"
 
 const geistMono = Geist_Mono({
@@ -33,7 +34,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className={`${anybody.className} antialiased`}>
-        <RiZeroProvider>{children}</RiZeroProvider>
+        <ToastProvider>
+          <AnchoredToastProvider>
+            <RiZeroProvider>{children}</RiZeroProvider>
+          </AnchoredToastProvider>
+        </ToastProvider>
       </body>
     </html>
   )

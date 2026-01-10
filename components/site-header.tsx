@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/popover"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Textarea } from "@/components/ui/textarea"
+import { toastManager } from "@/components/ui/toast"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { cn } from "@/lib/utils"
 
@@ -89,6 +90,11 @@ export function SiteHeader({ title }: { title?: string }) {
 
         setHelpMessage("")
         setHelpOpen(false)
+        toastManager.add({
+          title: "Message sent",
+          description: "We’ll get back to you soon.",
+          type: "success",
+        })
       } catch (error) {
         setHelpError(
           error instanceof Error ? error.message : "Failed to send help request."
