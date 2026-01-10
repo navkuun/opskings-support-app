@@ -799,167 +799,177 @@ function TicketsOverTimeChart({
   } satisfies ChartConfig
 
   return (
-    <Card className="gap-4">
-      <CardHeader>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-0.5">
-              <CardTitle>Tickets over time</CardTitle>
-              <div className="text-xs text-muted-foreground">
-                Created vs resolved by month.
+    <CardGroup>
+      <Card variant="group" className="gap-4">
+        <CardHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <CardTitle>Tickets over time</CardTitle>
+                <div className="text-xs text-muted-foreground">
+                  Created vs resolved by month.
+                </div>
               </div>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              {isLoading ? (
-                <div className="text-xs text-muted-foreground">Loading…</div>
-              ) : null}
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <SegmentedButtons
-                  ariaLabel="Tickets over time series"
-                  value={series}
-                  onValueChange={setSeries}
-                  items={[
-                    { value: "both", label: "All" },
-                    { value: "created", label: "Created" },
-                    { value: "resolved", label: "Resolved" },
-                  ]}
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Year</span>
-                  <Select
-                    value={year}
-                    onValueChange={(next) => setYear(next ?? defaultYear)}
-                  >
-                    <SelectTrigger size="sm" className="h-6">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="end">
-                      <SelectGroup>
-                        {years.map((y) => (
-                          <SelectItem key={y} value={y}>
-                            {y}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+              <div className="flex flex-col items-end gap-2">
+                {isLoading ? (
+                  <div className="text-xs text-muted-foreground">Loading…</div>
+                ) : null}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <SegmentedButtons
+                    ariaLabel="Tickets over time series"
+                    value={series}
+                    onValueChange={setSeries}
+                    items={[
+                      { value: "both", label: "All" },
+                      { value: "created", label: "Created" },
+                      { value: "resolved", label: "Resolved" },
+                    ]}
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Year</span>
+                    <Select
+                      value={year}
+                      onValueChange={(next) => setYear(next ?? defaultYear)}
+                    >
+                      <SelectTrigger size="sm" className="h-6">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        <SelectGroup>
+                          {years.map((y) => (
+                            <SelectItem key={y} value={y}>
+                              {y}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-            {showCreated ? (
-              <div className="flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 rounded-[2px]"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, var(--chart-1), var(--chart-2))",
-                  }}
-                />
-                Created
-              </div>
-            ) : null}
-            {showResolved ? (
-              <div className="flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 rounded-[2px]"
-                  style={{ backgroundColor: "var(--chart-4)" }}
-                />
-                Resolved
-              </div>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              {showCreated ? (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 rounded-[2px]"
+                    style={{
+                      background:
+                        "linear-gradient(180deg, var(--chart-1), var(--chart-2))",
+                    }}
+                  />
+                  Created
+                </div>
+              ) : null}
+              {showResolved ? (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 rounded-[2px]"
+                    style={{ backgroundColor: "var(--chart-4)" }}
+                  />
+                  Resolved
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <ChartContainer
-          config={chartConfig}
-          className="aspect-auto h-60 w-full [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-[var(--chart-1)]/15"
-        >
-          <BarChart
-            accessibilityLayer
-            data={filteredData}
-            maxBarSize={20}
-            margin={{ left: -12, right: 12, top: 12 }}
+        </CardHeader>
+        <CardContent>
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-60 w-full [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-[var(--chart-1)]/15"
           >
-            <defs>
-              <linearGradient id={`${id}-gradient`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--chart-1)" />
-                <stop offset="100%" stopColor="var(--chart-2)" />
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              vertical={false}
-              strokeDasharray="2 2"
-              stroke="var(--border)"
-            />
-            <XAxis
-              dataKey="monthKey"
-              tickLine={false}
-              tickMargin={12}
-              interval={0}
-              stroke="var(--border)"
-              tickFormatter={(value) =>
-                isSmallScreen
-                  ? getMonthLabelShort(String(value))
-                  : getMonthLabelLong(String(value))
-              }
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(value) => formatCompactNumber(Number(value))}
-            />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  hideIndicator
-                  labelFormatter={(value) => getMonthLabelLong(String(value))}
-                  formatter={(value, name) => {
-                    const meta =
-                      name === "created"
-                        ? { label: "Created", color: "var(--chart-1)" }
-                        : name === "resolved"
-                          ? { label: "Resolved", color: "var(--chart-4)" }
-                          : { label: name, color: "var(--muted-foreground)" }
+            <BarChart
+              accessibilityLayer
+              data={filteredData}
+              maxBarSize={20}
+              margin={{ left: -12, right: 12, top: 12 }}
+            >
+              <defs>
+                <linearGradient id={`${id}-gradient`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--chart-1)" />
+                  <stop offset="100%" stopColor="var(--chart-2)" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                vertical={false}
+                strokeDasharray="2 2"
+                stroke="var(--border)"
+              />
+              <XAxis
+                dataKey="monthKey"
+                tickLine={false}
+                tickMargin={12}
+                interval={0}
+                stroke="var(--border)"
+                tickFormatter={(value) =>
+                  isSmallScreen
+                    ? getMonthLabelShort(String(value))
+                    : getMonthLabelLong(String(value))
+                }
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => formatCompactNumber(Number(value))}
+              />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    hideIndicator
+                    labelFormatter={(value) => getMonthLabelLong(String(value))}
+                    formatter={(value, name) => {
+                      const meta =
+                        name === "created"
+                          ? { label: "Created", color: "var(--chart-1)" }
+                          : name === "resolved"
+                            ? { label: "Resolved", color: "var(--chart-4)" }
+                            : { label: name, color: "var(--muted-foreground)" }
 
-                    const numericValue =
-                      typeof value === "number" ? value : Number(value)
+                      const numericValue =
+                        typeof value === "number" ? value : Number(value)
 
-                    return (
-                      <div className="flex w-full items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="h-2.5 w-2.5 rounded-[2px]"
-                            style={{ backgroundColor: meta.color }}
-                          />
-                          <span className="text-muted-foreground">
-                            {meta.label}
+                      return (
+                        <div className="flex w-full items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 rounded-[2px]"
+                              style={{ backgroundColor: meta.color }}
+                            />
+                            <span className="text-muted-foreground">
+                              {meta.label}
+                            </span>
+                          </div>
+                          <span className="font-mono font-medium tabular-nums">
+                            {Number.isFinite(numericValue)
+                              ? numericValue.toLocaleString()
+                              : "—"}
                           </span>
                         </div>
-                        <span className="font-mono font-medium tabular-nums">
-                          {Number.isFinite(numericValue)
-                            ? numericValue.toLocaleString()
-                            : "—"}
-                        </span>
-                      </div>
-                    )
-                  }}
+                      )
+                    }}
+                  />
+                }
+              />
+              {showCreated ? (
+                <Bar
+                  dataKey="created"
+                  fill={`url(#${id}-gradient)`}
+                  stackId={stackId}
                 />
-              }
-            />
-            {showCreated ? (
-              <Bar dataKey="created" fill={`url(#${id}-gradient)`} stackId={stackId} />
-            ) : null}
-            {showResolved ? (
-              <Bar dataKey="resolved" fill="var(--color-resolved)" stackId={stackId} />
-            ) : null}
-          </BarChart>
-        </ChartContainer>
-      </CardContent>
-    </Card>
+              ) : null}
+              {showResolved ? (
+                <Bar
+                  dataKey="resolved"
+                  fill="var(--color-resolved)"
+                  stackId={stackId}
+                />
+              ) : null}
+            </BarChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+    </CardGroup>
   )
 }
 
@@ -1026,119 +1036,122 @@ function TicketsByTypeChart({
   }, [slices])
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <CardTitle>Tickets by type</CardTitle>
-          <div className="text-xs text-muted-foreground">
-            Top ticket types by volume.
+    <CardGroup>
+      <Card variant="group" className="flex flex-col">
+        <CardHeader className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <CardTitle>Tickets by type</CardTitle>
+            <div className="text-xs text-muted-foreground">
+              Top ticket types by volume.
+            </div>
           </div>
+          <div className="shrink-0 flex flex-col items-end gap-2">
+            {isLoading ? (
+              <div className="text-xs text-muted-foreground">Loading…</div>
+            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <SegmentedButtons
+                ariaLabel="Tickets by type top N"
+                value={topN}
+                onValueChange={setTopN}
+                items={[
+                  { value: "5", label: "Top 5" },
+                  { value: "8", label: "Top 8" },
+                  { value: "12", label: "Top 12" },
+                ]}
+              />
+              <SegmentedButtons
+                ariaLabel="Tickets by type labels"
+                value={labelMode}
+                onValueChange={setLabelMode}
+                items={[
+                  { value: "count", label: "#" },
+                  { value: "percent", label: "%" },
+                ]}
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 pb-0">
+          <ChartContainer
+            config={chartConfig}
+            className="mx-auto aspect-square max-h-[250px] px-0"
+          >
+            <PieChart>
+              <ChartTooltip
+                content={<ChartTooltipContent nameKey="type" hideLabel />}
+              />
+              <Pie
+                data={chartData}
+                dataKey="tickets"
+                nameKey="type"
+                labelLine={false}
+                label={(props: PieLabelRenderProps) => {
+                  const { cx, cy, midAngle, innerRadius, outerRadius, payload } = props
+
+                  if (
+                    typeof cx !== "number" ||
+                    typeof cy !== "number" ||
+                    typeof midAngle !== "number" ||
+                    typeof innerRadius !== "number" ||
+                    typeof outerRadius !== "number"
+                  ) {
+                    return null
+                  }
+
+                  const payloadObj =
+                    typeof payload === "object" && payload !== null
+                      ? (payload as Record<string, unknown>)
+                      : null
+                  const rawTickets = payloadObj?.tickets
+                  const tickets =
+                    typeof rawTickets === "number" ? rawTickets : Number(rawTickets)
+                  if (!Number.isFinite(tickets) || tickets <= 0) return null
+                  const pct = totalTickets ? (tickets / totalTickets) * 100 : 0
+
+                  const RADIAN = Math.PI / 180
+                  const radius = innerRadius + (outerRadius - innerRadius) * 0.55
+                  const x = cx + radius * Math.cos(-midAngle * RADIAN)
+                  const y = cy + radius * Math.sin(-midAngle * RADIAN)
+
+                  return (
+                    <text
+                      x={x}
+                      y={y}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill="var(--foreground)"
+                      className="text-[11px] font-medium"
+                    >
+                      {labelMode === "percent"
+                        ? `${Math.round(pct)}%`
+                        : formatCompactNumber(tickets)}
+                    </text>
+                  )
+                }}
+              />
+            </PieChart>
+          </ChartContainer>
+        </CardContent>
+        <div className="px-6 pb-4 pt-2 text-xs text-muted-foreground">
+          {slices.length ? (
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {slices.map((slice) => (
+                <div key={slice.key} className="flex items-center gap-2">
+                  <span
+                    className="h-2 w-2 rounded-[2px]"
+                    style={{ backgroundColor: slice.color }}
+                  />
+                  <span className="max-w-[14ch] truncate">{slice.label}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>No data.</div>
+          )}
         </div>
-        <div className="shrink-0 flex flex-col items-end gap-2">
-          {isLoading ? (
-            <div className="text-xs text-muted-foreground">Loading…</div>
-          ) : null}
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <SegmentedButtons
-              ariaLabel="Tickets by type top N"
-              value={topN}
-              onValueChange={setTopN}
-              items={[
-                { value: "5", label: "Top 5" },
-                { value: "8", label: "Top 8" },
-                { value: "12", label: "Top 12" },
-              ]}
-            />
-            <SegmentedButtons
-              ariaLabel="Tickets by type labels"
-              value={labelMode}
-              onValueChange={setLabelMode}
-              items={[
-                { value: "count", label: "#" },
-                { value: "percent", label: "%" },
-              ]}
-            />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 pb-0">
-        <ChartContainer
-          config={chartConfig}
-          className="mx-auto aspect-square max-h-[250px] px-0"
-        >
-          <PieChart>
-            <ChartTooltip
-              content={<ChartTooltipContent nameKey="type" hideLabel />}
-            />
-            <Pie
-              data={chartData}
-              dataKey="tickets"
-              nameKey="type"
-              labelLine={false}
-              label={(props: PieLabelRenderProps) => {
-                const { cx, cy, midAngle, innerRadius, outerRadius, payload } = props
-
-                if (
-                  typeof cx !== "number" ||
-                  typeof cy !== "number" ||
-                  typeof midAngle !== "number" ||
-                  typeof innerRadius !== "number" ||
-                  typeof outerRadius !== "number"
-                ) {
-                  return null
-                }
-
-                const payloadObj =
-                  typeof payload === "object" && payload !== null
-                    ? (payload as Record<string, unknown>)
-                    : null
-                const rawTickets = payloadObj?.tickets
-                const tickets = typeof rawTickets === "number" ? rawTickets : Number(rawTickets)
-                if (!Number.isFinite(tickets) || tickets <= 0) return null
-                const pct = totalTickets ? (tickets / totalTickets) * 100 : 0
-
-                const RADIAN = Math.PI / 180
-                const radius = innerRadius + (outerRadius - innerRadius) * 0.55
-                const x = cx + radius * Math.cos(-midAngle * RADIAN)
-                const y = cy + radius * Math.sin(-midAngle * RADIAN)
-
-                return (
-                  <text
-                    x={x}
-                    y={y}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fill="var(--foreground)"
-                    className="text-[11px] font-medium"
-                  >
-                    {labelMode === "percent"
-                      ? `${Math.round(pct)}%`
-                      : formatCompactNumber(tickets)}
-                  </text>
-                )
-              }}
-            />
-          </PieChart>
-        </ChartContainer>
-      </CardContent>
-      <div className="px-6 pb-4 pt-2 text-xs text-muted-foreground">
-        {slices.length ? (
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {slices.map((slice) => (
-              <div key={slice.key} className="flex items-center gap-2">
-                <span
-                  className="h-2 w-2 rounded-[2px]"
-                  style={{ backgroundColor: slice.color }}
-                />
-                <span className="max-w-[14ch] truncate">{slice.label}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div>No data.</div>
-        )}
-      </div>
-    </Card>
+      </Card>
+    </CardGroup>
   )
 }
 
@@ -1207,83 +1220,85 @@ function TicketsByPriorityCard({
   }, [counts])
 
   return (
-    <Card className="gap-5">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-0.5">
-            <CardTitle>Tickets by priority</CardTitle>
-            <div className="flex items-baseline gap-2">
-              <div className="text-2xl font-semibold">
-                {formatCompactNumber(selected.total)}
-              </div>
-              {isLoading ? (
-                <span className="text-xs text-muted-foreground">Loading…</span>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <SegmentedButtons
-              ariaLabel="Tickets by priority status"
-              value={statusFilter}
-              onValueChange={setStatusFilter}
-              items={[
-                { value: "all", label: "All" },
-                { value: "open", label: "Open" },
-                { value: "resolved", label: "Resolved" },
-              ]}
-            />
-            <div className="flex flex-wrap items-center justify-end gap-4">
-              {segments.map((segment) => (
-                <div key={segment.key} className="flex items-center gap-2">
-                  <div
-                    aria-hidden="true"
-                    className={cn("size-1.5 shrink-0 rounded-xs", segment.swatch)}
-                  />
-                  <div className="text-[13px]/3 text-muted-foreground/60">
-                    {segment.label}
-                  </div>
+    <CardGroup>
+      <Card variant="group" className="gap-5">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <CardTitle>Tickets by priority</CardTitle>
+              <div className="flex items-baseline gap-2">
+                <div className="text-2xl font-semibold">
+                  {formatCompactNumber(selected.total)}
                 </div>
-              ))}
+                {isLoading ? (
+                  <span className="text-xs text-muted-foreground">Loading…</span>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <SegmentedButtons
+                ariaLabel="Tickets by priority status"
+                value={statusFilter}
+                onValueChange={setStatusFilter}
+                items={[
+                  { value: "all", label: "All" },
+                  { value: "open", label: "Open" },
+                  { value: "resolved", label: "Resolved" },
+                ]}
+              />
+              <div className="flex flex-wrap items-center justify-end gap-4">
+                {segments.map((segment) => (
+                  <div key={segment.key} className="flex items-center gap-2">
+                    <div
+                      aria-hidden="true"
+                      className={cn("size-1.5 shrink-0 rounded-xs", segment.swatch)}
+                    />
+                    <div className="text-[13px]/3 text-muted-foreground/60">
+                      {segment.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <div className="flex h-5 gap-1 overflow-hidden rounded-md bg-muted/30">
-          {segments.map((segment) => (
-            <div
-              key={segment.key}
-              className={cn("h-full", segment.swatch)}
-              style={{
-                width: `${selected.total ? (segment.count / selected.total) * 100 : 0}%`,
-              }}
-            />
-          ))}
-        </div>
-
-        <div>
-          <div className="mb-3 text-[13px]/3 text-muted-foreground/60">
-            Priority breakdown{statusFilter === "all" ? "" : ` (${statusFilter})`}
-          </div>
-          <ul className="divide-y divide-border text-sm">
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <div className="flex h-5 gap-1 overflow-hidden rounded-md bg-muted/30">
             {segments.map((segment) => (
-              <li key={segment.key} className="flex items-center gap-2 py-2">
-                <span
-                  className={cn("size-2 shrink-0 rounded-full", segment.swatch)}
-                  aria-hidden="true"
-                />
-                <span className="grow text-muted-foreground">
-                  {segment.label} priority{" "}
-                  {statusFilter === "all" ? "tickets" : `${statusFilter} tickets`}
-                </span>
-                <span className="text-[13px]/3 font-medium text-foreground/70 tabular-nums">
-                  {segment.count.toLocaleString()}
-                </span>
-              </li>
+              <div
+                key={segment.key}
+                className={cn("h-full", segment.swatch)}
+                style={{
+                  width: `${selected.total ? (segment.count / selected.total) * 100 : 0}%`,
+                }}
+              />
             ))}
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+
+          <div>
+            <div className="mb-3 text-[13px]/3 text-muted-foreground/60">
+              Priority breakdown{statusFilter === "all" ? "" : ` (${statusFilter})`}
+            </div>
+            <ul className="divide-y divide-border text-sm">
+              {segments.map((segment) => (
+                <li key={segment.key} className="flex items-center gap-2 py-2">
+                  <span
+                    className={cn("size-2 shrink-0 rounded-full", segment.swatch)}
+                    aria-hidden="true"
+                  />
+                  <span className="grow text-muted-foreground">
+                    {segment.label} priority{" "}
+                    {statusFilter === "all" ? "tickets" : `${statusFilter} tickets`}
+                  </span>
+                  <span className="text-[13px]/3 font-medium text-foreground/70 tabular-nums">
+                    {segment.count.toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+    </CardGroup>
   )
 }
