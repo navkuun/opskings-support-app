@@ -195,21 +195,10 @@ export function LoginForm() {
             />
           </div>
 
-          <div className="flex items-center justify-center">
+          <div className="flex-col items-center justify-center">
             <h1 className="text-xl text-center font-semibold text-zinc-900 dark:text-zinc-100">
-              Sign In To OpsKings
+              Welcome To OpsKings
             </h1>
-            {step !== "email" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={resetFlow}
-                disabled={isSubmitting}
-              >
-                Use a different email
-              </Button>
-            ) : null}
           </div>
 
           <form onSubmit={onContinue} className="space-y-3">
@@ -219,6 +208,7 @@ export function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
+                type="email"
                 required
                 disabled={isSubmitting || step !== "email"}
               />
@@ -244,7 +234,7 @@ export function LoginForm() {
           </form>
 
           {step === "password" ? (
-            <form onSubmit={onSignInWithPassword} className="space-y-3 pt-2">
+            <form onSubmit={onSignInWithPassword} className="space-y-3">
               <InputGroup>
                 <InputGroupInput
                   placeholder="Password"
@@ -261,15 +251,30 @@ export function LoginForm() {
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? "Working…" : "Sign in"}
                 </Button>
-                <Button
+                <div className="flex items-center justify-between gap-2">
+               
+              <div className="text-center">
+              <Button
+                type="button"
+                variant="link"
+                className="text-zinc-600 px-0"
+                size="sm"
+                onClick={resetFlow}
+                disabled={isSubmitting}
+              >
+                Go Back
+              </Button>
+              </div>
+               <Button
                   type="button"
-                  variant="outline"
-                  className="w-full"
+                  variant="link"
+                  className="text-zinc-600 px-0"
                   onClick={requestPasswordLink}
                   disabled={isSubmitting || !normalizeEmail(email)}
                 >
-                  Send password link
+                  Reset Password
                 </Button>
+              </div>
               </div>
             </form>
           ) : null}
@@ -308,7 +313,6 @@ export function LoginForm() {
               </li>
             </ul>
 
-            <div className="mt-4 border-t border-dashed border-zinc-200 dark:border-zinc-800" />
           </div>
         </div>
       </div>

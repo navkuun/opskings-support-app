@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   type ChartConfig,
   ChartContainer,
@@ -171,7 +171,7 @@ function KpiCard({
   isLoading?: boolean
 }) {
   return (
-    <Card size="sm">
+    <Card size="sm" variant="group">
       <CardHeader className="pb-2">
         <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
@@ -236,11 +236,11 @@ function KpiDelta({
   const arrow = direction === "up" ? "▲" : direction === "down" ? "▼" : "•"
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Badge className={cn("h-6 border-none px-2 font-medium", classes)}>
-        <span className="mr-1 text-[10px]">{arrow}</span>
-        {formatPercent(value)}
-      </Badge>
+      <div className="flex flex-col items-end gap-1">
+        <Badge className={cn("h-6 border-none px-2 font-medium", classes)}>
+          <span className="mr-1 text-[10px]">{arrow}</span>
+          {formatPercent(value)}
+        </Badge>
       <span className="text-[10px] text-muted-foreground">{label}</span>
     </div>
   )
@@ -613,7 +613,7 @@ export function DashboardClient() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <CardGroup className="grid grid-cols-1 divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
         <KpiCard
           title="Total tickets"
           value={formatCompactNumber(computed.total)}
@@ -650,7 +650,7 @@ export function DashboardClient() {
           }
           isLoading={isLoading}
         />
-      </div>
+      </CardGroup>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <TicketsOverTimeChart
