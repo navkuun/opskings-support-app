@@ -27,5 +27,9 @@ export const ticketMessages = pgTable(
   },
   (t) => ({
     ticketIdIdx: index("idx_ticket_messages_ticket_id").on(t.ticketId),
+    ticketIdCreatedAtIdx: index("idx_ticket_messages_ticket_id_created_at").on(
+      t.ticketId,
+      t.createdAt,
+    ),
   }),
 )

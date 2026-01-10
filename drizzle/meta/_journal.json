@@ -29,6 +29,13 @@
       "when": 1767996516132,
       "tag": "0003_move_app_users",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1768052427173,
+      "tag": "0004_dashboard_indexes",
+      "breakpoints": true
     }
   ]
 }

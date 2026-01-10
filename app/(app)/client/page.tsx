@@ -54,7 +54,7 @@ export default async function Page() {
     .limit(25)
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6 px-6 py-8">
+    <main className="w-full space-y-6 px-6 py-8">
       <div className="space-y-1">
         <h1 className="text-lg font-semibold">Your tickets</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-300">

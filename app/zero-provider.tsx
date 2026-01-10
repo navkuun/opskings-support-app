@@ -38,7 +38,7 @@ export function RiZeroProvider({
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="dark"
+      defaultTheme="light"
       enableSystem={false}
       storageKey="ri-theme"
       disableTransitionOnChange

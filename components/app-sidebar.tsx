@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  CaretDownIcon,
   HouseIcon,
   TicketIcon,
 } from "@phosphor-icons/react"
@@ -13,7 +14,6 @@ import { cn } from "@/lib/utils"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -21,13 +21,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
 } from "@/components/ui/sidebar"
 
 type NavItem = {
   title: string
   href: string
   icon: React.ComponentType<{ className?: string }>
+  endIcon?: React.ComponentType<{ className?: string }>
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -40,6 +40,82 @@ function isActivePath(pathname: string, href: string) {
   return pathname.startsWith(`${href}/`)
 }
 
+function CrownSidebarMenuLink({
+  item,
+  isActive,
+}: {
+  item: NavItem
+  isActive: boolean
+}) {
+  const Icon = item.icon
+
+  return (
+    <SidebarMenuButton
+      tooltip={item.title}
+      isActive={isActive}
+      render={<Link href={item.href} />}
+      className={cn(
+        "h-10 !items-stretch gap-0 overflow-visible rounded-none p-0 text-sm",
+        "hover:bg-transparent hover:text-inherit active:bg-transparent active:text-inherit",
+        "data-active:bg-transparent data-active:text-inherit",
+        "group-data-[collapsible=icon]:p-2!"
+      )}
+    >
+      <span
+        className={cn(
+          "hidden size-full items-center justify-center group-data-[collapsible=icon]:flex",
+          isActive
+            ? "rounded-md bg-primary text-primary-foreground"
+            : "rounded-md text-sidebar-foreground/60 group-hover/menu-button:text-sidebar-foreground"
+        )}
+      >
+        <Icon
+          className={cn(
+            "size-5 shrink-0 transition-colors",
+            isActive ? "text-primary-foreground" : "text-current"
+          )}
+        />
+        <span className="sr-only">{item.title}</span>
+      </span>
+
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-3 px-3 py-2 transition-colors group-data-[collapsible=icon]:hidden",
+          isActive
+            ? "bg-primary text-primary-foreground"
+            : "bg-sidebar-accent/20 text-sidebar-foreground/70 group-hover/menu-button:bg-sidebar-accent/30 group-hover/menu-button:text-sidebar-foreground"
+        )}
+      >
+        <Icon
+          className={cn(
+            "size-4 shrink-0 transition-opacity",
+            isActive ? "opacity-100" : "opacity-80"
+          )}
+        />
+        <span className="truncate">{item.title}</span>
+      </div>
+
+      <div className="relative w-13 shrink-0 self-stretch group-data-[collapsible=icon]:hidden">
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className={cn(
+            "!h-full !w-full fill-current transition-colors",
+            isActive
+              ? "text-primary"
+              : "text-sidebar-accent/20 group-hover/menu-button:text-sidebar-accent/30"
+          )}
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <polygon points="0,0 100,0 70,25 100,50 70,75 100,100 0,100" />
+        </svg>
+
+      </div>
+    </SidebarMenuButton>
+  )
+}
+
 export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
@@ -47,17 +123,20 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
     <Sidebar
       variant="sidebar"
       collapsible="icon"
-      className={cn(className)}
+      className={cn("border-sidebar-border/60", className)}
       {...props}
     >
-      <SidebarHeader>
+      <SidebarHeader className="px-4 py-6">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
               tooltip="Dashboard"
               render={<Link href="/dashboard" />}
-              className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!p-2"
+              className={cn(
+                "h-auto justify-start bg-transparent p-0 hover:bg-transparent",
+                "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!p-2"
+              )}
             >
               <Image
                 src="/logo.webp"
@@ -73,38 +152,25 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarSeparator />
-
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
+      <SidebarContent className="pt-2">
+        <SidebarGroup className="px-4">
+          <SidebarGroupContent className="text-sm">
+            <SidebarMenu className="gap-2">
               {NAV_ITEMS.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    tooltip={item.title}
+                  <CrownSidebarMenuLink
+                    item={{
+                      ...item,
+                      endIcon: item.endIcon ?? CaretDownIcon,
+                    }}
                     isActive={isActivePath(pathname, item.href)}
-                    render={<Link href={item.href} />}
-                  >
-                    <item.icon className="size-4" />
-                    <span className="group-data-[collapsible=icon]:hidden">
-                      {item.title}
-                    </span>
-                  </SidebarMenuButton>
+                  />
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarSeparator />
-
-      <SidebarFooter>
-        <div className="px-2 py-1 text-xs text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-          OpsKings Support
-        </div>
-      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>

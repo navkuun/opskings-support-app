@@ -31,8 +31,18 @@ export const tickets = pgTable(
   },
   (t) => ({
     clientIdIdx: index("idx_tickets_client_id").on(t.clientId),
+    clientCreatedAtIdx: index("idx_tickets_client_id_created_at").on(
+      t.clientId,
+      t.createdAt,
+    ),
     assignedToIdx: index("idx_tickets_assigned_to").on(t.assignedTo),
+    assignedToCreatedAtIdx: index("idx_tickets_assigned_to_created_at").on(
+      t.assignedTo,
+      t.createdAt,
+    ),
+    ticketTypeIdIdx: index("idx_tickets_ticket_type_id").on(t.ticketTypeId),
     statusIdx: index("idx_tickets_status").on(t.status),
+    priorityIdx: index("idx_tickets_priority").on(t.priority),
     createdAtIdx: index("idx_tickets_created_at").on(t.createdAt),
     resolvedAtIdx: index("idx_tickets_resolved_at").on(t.resolvedAt),
   }),
