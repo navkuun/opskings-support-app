@@ -95,7 +95,12 @@ export function NavUser({
         if (!res.ok) return
 
         const data = (await res.json()) as AppUserMeResponse
-        const formattedRole = data.internalRole ? formatRole(data.internalRole) : null
+        const formattedRole =
+          data.userType === "client"
+            ? "Client"
+            : data.internalRole
+              ? formatRole(data.internalRole)
+              : null
 
         if (!cancelled) {
           setRole(formattedRole)

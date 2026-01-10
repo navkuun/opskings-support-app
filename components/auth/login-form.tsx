@@ -297,7 +297,7 @@ export function LoginForm() {
             </div>
           ) : null}
 
-          <div className=" bg-white text-sm text-zinc-500 dark:border-zinc-800 dark:bg-black dark:text-zinc-200">
+          <div className=" bg-white text-sm text-zinc-500 dark:border-zinc-800 bg-transparent dark:bg-transparent dark:text-zinc-200">
             <p className="font-medium">
               This OpsKings website (www.OpsKings.com) is by invitation only.
             </p>
