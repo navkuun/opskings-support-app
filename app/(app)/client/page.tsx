@@ -1,4 +1,5 @@
 import { desc, eq } from "drizzle-orm"
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -7,6 +8,11 @@ import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
 import { tickets } from "@/lib/db/schema/tickets"
 import { ticketTypes } from "@/lib/db/schema/ticket-types"
+
+export const metadata: Metadata = {
+  title: "Client",
+  description: "View and track recent tickets for your account.",
+}
 
 export const runtime = "nodejs"
 

@@ -227,7 +227,7 @@ export function LoginForm() {
             ) : null}
 
             {step === "email" ? (
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button type="submit"  className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? "Working…" : "Continue"}
               </Button>
             ) : null}

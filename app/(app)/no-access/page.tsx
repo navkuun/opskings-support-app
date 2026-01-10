@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm"
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -6,6 +7,11 @@ import { getAuth } from "@/lib/auth"
 import { syncAppUserFromAllowlist } from "@/lib/app-user"
 import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
+
+export const metadata: Metadata = {
+  title: "No access",
+  description: "Your account is pending activation or has been disabled.",
+}
 
 export const runtime = "nodejs"
 

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm"
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -7,6 +8,11 @@ import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
 
 import { DashboardClient } from "./dashboard-client"
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  description: "Ticket analytics and operational metrics.",
+}
 
 export const runtime = "nodejs"
 

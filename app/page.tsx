@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm"
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -6,6 +7,11 @@ import { LoginForm } from "@/components/auth/login-form"
 import { getAuth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: "Sign in to OpsKings Support.",
+}
 
 export const runtime = "nodejs"
 

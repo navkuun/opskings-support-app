@@ -14,7 +14,10 @@ const anybody = Anybody({
 })
 
 export const metadata: Metadata = {
-  title: "OpsKings Support",
+  title: {
+    default: "OpsKings Support",
+    template: "%s | OpsKings Support",
+  },
   description: "Support dashboard for OpsKings clients.",
 }
 

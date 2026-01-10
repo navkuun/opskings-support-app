@@ -1,4 +1,11 @@
+import type { Metadata } from "next"
+
 import { ResetPasswordForm } from "@/components/auth/reset-password-form"
+
+export const metadata: Metadata = {
+  title: "Reset password",
+  description: "Set or reset your OpsKings Support password.",
+}
 
 export default async function Page({
   searchParams,
@@ -15,4 +22,3 @@ export default async function Page({
     </div>
   )
 }
-

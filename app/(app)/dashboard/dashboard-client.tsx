@@ -139,20 +139,6 @@ function updateSearchParams(
   router.replace(`?${next.toString()}`)
 }
 
-function useMediaQuery(query: string) {
-  const [matches, setMatches] = React.useState(false)
-
-  React.useEffect(() => {
-    const media = window.matchMedia(query)
-    const update = () => setMatches(media.matches)
-    update()
-    media.addEventListener("change", update)
-    return () => media.removeEventListener("change", update)
-  }, [query])
-
-  return matches
-}
-
 function SegmentedButtons<T extends string>({
   value,
   onValueChange,
@@ -528,19 +514,7 @@ export function DashboardClient() {
 
   return (
     <div className="w-full space-y-6 px-6 py-8">
-      <div className="space-y-1">
-        <h1 className="text-lg font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Ticket analytics with server-side aggregation.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">
-          Showing {formatCompactNumber(computed.total)} tickets.
-          {isLoading ? " Loading…" : ""}
-        </div>
-
+      <div className="flex flex-wrap items-center justify-start gap-3">
         <Popover
           open={filtersOpen}
           onOpenChange={(open) => setFiltersOpen(open)}
@@ -754,7 +728,6 @@ function TicketsOverTimeChart({
 }) {
   const id = React.useId()
   const [series, setSeries] = React.useState<"both" | "created" | "resolved">("both")
-  const isSmallScreen = useMediaQuery("(max-width: 640px)")
 
   const years = React.useMemo(() => {
     const unique = new Set<string>()
@@ -902,11 +875,7 @@ function TicketsOverTimeChart({
                 tickMargin={12}
                 interval={0}
                 stroke="var(--border)"
-                tickFormatter={(value) =>
-                  isSmallScreen
-                    ? getMonthLabelShort(String(value))
-                    : getMonthLabelLong(String(value))
-                }
+                tickFormatter={(value) => getMonthLabelShort(String(value))}
               />
               <YAxis
                 tickLine={false}
@@ -917,7 +886,7 @@ function TicketsOverTimeChart({
                 content={
                   <ChartTooltipContent
                     hideIndicator
-                    labelFormatter={(value) => getMonthLabelLong(String(value))}
+                    labelFormatter={(value) => getMonthLabelShort(String(value))}
                     formatter={(value, name) => {
                       const meta =
                         name === "created"

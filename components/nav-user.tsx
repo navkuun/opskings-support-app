@@ -23,6 +23,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { authClient } from "@/lib/auth-client"
+import { Badge } from "@/components/ui/badge"
 
 function getInitials(value: string) {
   const trimmed = value.trim()
@@ -31,6 +32,39 @@ function getInitials(value: string) {
   const parts = trimmed.split(/\s+/).filter(Boolean)
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
   return `${parts[0]!.slice(0, 1)}${parts[1]!.slice(0, 1)}`.toUpperCase()
+}
+
+function formatRole(value: string) {
+  return value
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
+function formatName(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ""
+
+  return trimmed
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      const letters = word.replace(/[^A-Za-z]/g, "")
+      const isAllUpper = letters !== "" && letters === letters.toUpperCase()
+      const isAllLower = letters !== "" && letters === letters.toLowerCase()
+      const rest = isAllUpper || isAllLower ? word.slice(1).toLowerCase() : word.slice(1)
+
+      return word[0]!.toUpperCase() + rest
+    })
+    .join(" ")
+}
+
+type AppUserMeResponse = {
+  userType: "internal" | "client"
+  internalRole: "support_agent" | "manager" | "admin" | null
 }
 
 export function NavUser({
@@ -45,8 +79,37 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const router = useRouter()
   const [isSigningOut, setIsSigningOut] = React.useState(false)
+  const [role, setRole] = React.useState<string | null>(null)
 
-  const initials = getInitials(user.name || user.email)
+  const displayName = user.name ? formatName(user.name) || "User" : "User"
+  const initials = getInitials(displayName || user.email)
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    async function loadRole() {
+      try {
+        const res = await fetch("/api/app-user/me", {
+          cache: "no-store",
+        })
+        if (!res.ok) return
+
+        const data = (await res.json()) as AppUserMeResponse
+        const formattedRole = data.internalRole ? formatRole(data.internalRole) : null
+
+        if (!cancelled) {
+          setRole(formattedRole)
+        }
+      } catch {
+        // Ignore role fetch errors; user menu still works without it.
+      }
+    }
+
+    void loadRole()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const onSignOut = React.useCallback(async () => {
     if (isSigningOut) return
@@ -74,19 +137,22 @@ export function NavUser({
             render={
               <SidebarMenuButton
                 size="lg"
-                className="data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!p-2"
+                className="h-auto data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!p-2"
               />
             }
           >
             <Avatar className="size-8 rounded-lg grayscale">
-              <AvatarImage src={user.avatar ?? undefined} alt={user.name} />
+              <AvatarImage src={user.avatar ?? undefined} alt={displayName} />
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate font-medium">{user.name}</span>
-              <span className="text-muted-foreground truncate text-xs">
-                {user.email}
-              </span>
+            <div className="flex min-w-0 flex-1 flex-col items-start text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+              <span className="truncate font-medium">{displayName}</span>
+              <span className="text-muted-foreground truncate text-xs">{user.email}</span>
+              {role ? (
+                <Badge variant="outline" className="mt-1 h-4 border-sidebar-border/60 text-[0.55rem]">
+                  {role}
+                </Badge>
+              ) : null}
             </div>
             <DotsThreeVerticalIcon className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
@@ -99,14 +165,17 @@ export function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="size-8 rounded-lg">
-                  <AvatarImage src={user.avatar ?? undefined} alt={user.name} />
+                  <AvatarImage src={user.avatar ?? undefined} alt={displayName} />
                   <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                 </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
-                  <span className="text-muted-foreground truncate text-xs">
-                    {user.email}
-                  </span>
+                <div className="flex min-w-0 flex-1 flex-col items-start text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{displayName}</span>
+                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
+                  {role ? (
+                    <Badge variant="outline" className="mt-1 h-4 border-border text-[0.55rem]">
+                      {role}
+                    </Badge>
+                  ) : null}
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -121,4 +190,3 @@ export function NavUser({
     </SidebarMenu>
   )
 }
-

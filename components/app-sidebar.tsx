@@ -69,7 +69,7 @@ function CrownSidebarMenuLink({
           "hidden size-full items-center justify-center group-data-[collapsible=icon]:flex",
           isActive
             ? "rounded-md bg-primary text-primary-foreground"
-            : "rounded-md text-sidebar-foreground/60 group-hover/menu-button:text-sidebar-foreground"
+            : "rounded-md text-sidebar-foreground/60 dark:text-white group-hover/menu-button:text-sidebar-foreground dark:group-hover/menu-button:text-white"
         )}
       >
         <Icon
@@ -86,7 +86,7 @@ function CrownSidebarMenuLink({
           "flex min-w-0 flex-1 items-center gap-3 px-3 py-2 transition-colors group-data-[collapsible=icon]:hidden",
           isActive
             ? "bg-primary text-primary-foreground"
-            : "bg-sidebar-accent/20 text-sidebar-foreground/70 group-hover/menu-button:bg-sidebar-accent/30 group-hover/menu-button:text-sidebar-foreground"
+            : "bg-sidebar-accent/20 text-sidebar-foreground/70 dark:text-white group-hover/menu-button:bg-sidebar-accent/30 group-hover/menu-button:text-sidebar-foreground dark:group-hover/menu-button:text-white"
         )}
       >
         <Icon

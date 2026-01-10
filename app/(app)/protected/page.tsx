@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm"
+import type { Metadata } from "next"
 import Link from "next/link"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
@@ -7,6 +8,11 @@ import { ClientSessionDebug } from "@/components/auth/client-session-debug"
 import { getAuth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
+
+export const metadata: Metadata = {
+  title: "Protected",
+  description: "Internal authenticated page.",
+}
 
 export const runtime = "nodejs"
 
