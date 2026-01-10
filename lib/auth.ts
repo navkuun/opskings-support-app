@@ -1,13 +1,13 @@
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
-import { eq } from "drizzle-orm"
 
+import {
+  getAllowlistMatchByEmail,
+  isAuthUserAllowlisted,
+  syncAppUserFromAllowlist,
+} from "@/lib/app-user"
 import { authDb } from "@/lib/db/auth"
-import { db } from "@/lib/db"
-import { appUsers } from "@/lib/db/schema/app-users"
 import * as authSchema from "@/lib/db/schema/better-auth"
-import { clients } from "@/lib/db/schema/clients"
-import { teamMembers } from "@/lib/db/schema/team-members"
 import { setPasswordResetLink } from "@/lib/auth-dev-mailbox"
 import { setEmailVerificationLink } from "@/lib/auth-dev-verify-mailbox"
 import { sendEmailVerificationEmail, sendPasswordResetEmail } from "@/lib/email/resend"
@@ -44,7 +44,7 @@ export function getAuth() {
     )
   }
 
-  const AUTH_CONFIG_VERSION = "2026-01-09-email-only-app-users-v2"
+  const AUTH_CONFIG_VERSION = "2026-01-09-allowlist-login-v4"
   const signature = JSON.stringify({
     v: AUTH_CONFIG_VERSION,
     baseURL: getBaseURL(),
@@ -71,9 +71,9 @@ export function getAuth() {
       },
     }),
     emailVerification: {
-      sendOnSignUp: true,
-      sendOnSignIn: true,
-      autoSignInAfterVerification: true,
+      sendOnSignUp: false,
+      sendOnSignIn: false,
+      autoSignInAfterVerification: false,
       sendVerificationEmail: async ({ user, url, token }) => {
         if (process.env.NODE_ENV !== "production") {
           setEmailVerificationLink({ email: user.email, url, token })
@@ -90,7 +90,8 @@ export function getAuth() {
     },
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: true,
+      requireEmailVerification: false,
+      autoSignIn: false,
       sendResetPassword: async ({ user, url, token }) => {
         if (process.env.NODE_ENV !== "production") {
           setPasswordResetLink({ email: user.email, url, token })
@@ -115,59 +116,26 @@ export function getAuth() {
     databaseHooks: {
       user: {
         create: {
-          after: async (user) => {
-            const existing = await db
-              .select({ authUserId: appUsers.authUserId })
-              .from(appUsers)
-              .where(eq(appUsers.authUserId, user.id))
-              .limit(1)
-
-            if (existing.length) return
-
-            const teamMember = await db
-              .select({ id: teamMembers.id })
-              .from(teamMembers)
-              .where(eq(teamMembers.email, user.email))
-              .limit(1)
-
-            if (teamMember.length) {
-              await db.insert(appUsers).values({
-                authUserId: user.id,
-                accountStatus: "pending",
-                userType: "internal",
-                internalRole: null,
-                teamMemberId: teamMember[0].id,
-                clientId: null,
-              })
-              return
+          before: async (user) => {
+            const email = user.email?.trim().toLowerCase()
+            if (!email) return false
+            return (await getAllowlistMatchByEmail(email)) ? undefined : false
+          },
+        },
+      },
+      session: {
+        create: {
+          before: async (session) => {
+            if (!session?.userId) return false
+            return (await isAuthUserAllowlisted(session.userId)) ? undefined : false
+          },
+          after: async (session) => {
+            if (!session?.userId) return
+            try {
+              await syncAppUserFromAllowlist(session.userId)
+            } catch (error) {
+              console.error("[Better Auth] Failed to sync app user", error)
             }
-
-            const client = await db
-              .select({ id: clients.id })
-              .from(clients)
-              .where(eq(clients.email, user.email))
-              .limit(1)
-
-            if (client.length) {
-              await db.insert(appUsers).values({
-                authUserId: user.id,
-                accountStatus: "pending",
-                userType: "client",
-                internalRole: null,
-                teamMemberId: null,
-                clientId: client[0].id,
-              })
-              return
-            }
-
-            await db.insert(appUsers).values({
-              authUserId: user.id,
-              accountStatus: "pending",
-              userType: "client",
-              internalRole: null,
-              teamMemberId: null,
-              clientId: null,
-            })
           },
         },
       },

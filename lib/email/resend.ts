@@ -28,12 +28,30 @@ export async function sendPasswordResetEmail(input: {
   const from = getRequiredEnv("RESEND_FROM")
   const replyTo = process.env.RESEND_REPLY_TO?.trim() || undefined
 
-  const subject = "Reset your password"
-  const text = `Reset your password:\n\n${input.resetUrl}\n\nIf you didn’t request this, you can ignore this email.\n`
+  const subject = "Set your OpsKings Support password"
+  const text =
+    `Use this link to set your OpsKings Support password:\n\n` +
+    `${input.resetUrl}\n\n` +
+    `This link expires in 1 hour. If you didn’t request this, you can ignore this email.\n`
   const html = `
-    <p>Reset your password:</p>
-    <p><a href="${input.resetUrl}">Reset password</a></p>
-    <p>If you didn’t request this, you can ignore this email.</p>
+    <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45;">
+      <h2 style="margin: 0 0 12px;">Set your password</h2>
+      <p style="margin: 0 0 16px;">
+        Use the button below to set your OpsKings Support password.
+      </p>
+      <p style="margin: 0 0 18px;">
+        <a href="${input.resetUrl}" style="display: inline-block; padding: 10px 14px; background: #111827; color: #ffffff; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          Set password
+        </a>
+      </p>
+      <p style="margin: 0 0 8px; color: #4b5563; font-size: 13px;">
+        This link expires in 1 hour. If you didn’t request this, you can ignore this email.
+      </p>
+      <p style="margin: 16px 0 0; color: #6b7280; font-size: 12px;">
+        If the button doesn’t work, copy and paste this URL into your browser:<br />
+        <span style="word-break: break-all;">${input.resetUrl}</span>
+      </p>
+    </div>
   `.trim()
 
   try {

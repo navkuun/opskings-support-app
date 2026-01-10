@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 
 import { UserButton } from "@/components/auth/user-button"
 import { getAuth } from "@/lib/auth"
+import { syncAppUserFromAllowlist } from "@/lib/app-user"
 import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
 
@@ -18,6 +19,8 @@ export default async function Page() {
     redirect("/")
   }
 
+  await syncAppUserFromAllowlist(session.user.id)
+
   const rows = await db
     .select({
       accountStatus: appUsers.accountStatus,
@@ -29,6 +32,10 @@ export default async function Page() {
 
   const appUser = rows[0] ?? null
   const status = appUser?.accountStatus ?? "pending"
+
+  if (appUser?.accountStatus === "active") {
+    redirect(appUser.userType === "client" ? "/client" : "/dashboard")
+  }
 
   const heading =
     status === "disabled" ? "Account disabled" : "Access pending"

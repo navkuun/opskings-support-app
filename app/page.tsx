@@ -9,11 +9,7 @@ import { appUsers } from "@/lib/db/schema/app-users"
 
 export const runtime = "nodejs"
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
+export default async function Page() {
   const session = await getAuth().api.getSession({
     headers: await headers(),
   })
@@ -38,12 +34,9 @@ export default async function Page({
     redirect("/dashboard")
   }
 
-  const sp = await searchParams
-  const initialMode = sp.mode === "sign-up" ? "sign-up" : "sign-in"
-
   return (
-    <div className="min-h-[calc(100vh-0px)] bg-white px-6 py-10 text-zinc-900 dark:bg-black dark:text-zinc-200">
-      <LoginForm initialMode={initialMode} />
+    <div className="flex min-h-dvh items-center justify-center bg-white px-6 py-10 text-zinc-900 dark:bg-black dark:text-zinc-200">
+      <LoginForm />
     </div>
   )
 }

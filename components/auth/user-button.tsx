@@ -39,12 +39,6 @@ export function UserButton() {
         >
           Sign in
         </Link>
-        <Link
-          href="/?mode=sign-up"
-          className={buttonVariants({ size: "sm" })}
-        >
-          Register
-        </Link>
       </div>
     )
   }

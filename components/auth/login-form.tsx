@@ -7,156 +7,194 @@ import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
 import { authClient } from "@/lib/auth-client"
 
-export function LoginForm({
-  initialMode,
-}: {
-  initialMode?: "sign-in" | "sign-up"
-}) {
+type EmailStatusResponse = {
+  ok: boolean
+  allowlisted: boolean
+  allowlistType: "client" | "team_member" | null
+  hasAuthUser: boolean
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase()
+}
+
+export function LoginForm() {
   const router = useRouter()
   const { data: session } = authClient.useSession()
 
-  const [mode, setMode] = React.useState<"sign-in" | "sign-up" | "forgot">(
-    initialMode ?? "sign-in",
+  const [step, setStep] = React.useState<"email" | "password" | "setup-link">(
+    "email",
   )
-  const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
+  const [emailStatus, setEmailStatus] = React.useState<EmailStatusResponse | null>(
+    null,
+  )
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   React.useEffect(() => {
-    if (session?.user) router.replace("/dashboard")
+    if (session?.user) router.replace("/")
   }, [router, session?.user])
 
-  const resetRedirectTo = React.useCallback(() => {
-    const origin = window.location.origin
-    return `${origin}/reset-password`
+  const resetFlow = React.useCallback(() => {
+    setStep("email")
+    setPassword("")
+    setEmailStatus(null)
+    setError(null)
+    setNotice(null)
+    setIsSubmitting(false)
   }, [])
 
-  const onSubmit = React.useCallback(
+  const requestPasswordLink = React.useCallback(async () => {
+    const normalizedEmail = normalizeEmail(email)
+    if (!normalizedEmail) {
+      setError("Enter your email address.")
+      return
+    }
+
+    setEmail(normalizedEmail)
+    setError(null)
+    setNotice(null)
+    setIsSubmitting(true)
+    try {
+      const res = await fetch("/api/auth/setup-link", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+        }),
+      })
+
+      if (!res.ok) {
+        if (res.status === 403) {
+          setError("This email does not have access. Contact an administrator.")
+          return
+        }
+        setError("Something went wrong. Please try again.")
+        return
+      }
+
+      setNotice("We emailed you a password link.")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [email])
+
+  const onContinue = React.useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
       setError(null)
       setNotice(null)
+
+      const normalizedEmail = normalizeEmail(email)
+      if (!normalizedEmail) {
+        setError("Enter your email address.")
+        return
+      }
+
+      setEmail(normalizedEmail)
       setIsSubmitting(true)
       try {
-        if (mode === "forgot") {
-          const result = await authClient.requestPasswordReset({
-            email,
-            redirectTo: resetRedirectTo(),
-          })
-          if (result.error) {
-            setError(result.error.message ?? "Failed to request password reset.")
-            return
-          }
-          setNotice("If an account exists, a reset link has been sent.")
+        const res = await fetch("/api/auth/email-status", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ email: normalizedEmail }),
+        })
+
+        if (!res.ok) {
+          setError("Something went wrong. Please try again.")
           return
         }
 
-        if (mode === "sign-up") {
-          const result = await authClient.signUp.email({
-            name,
-            email,
-            password,
-            callbackURL: "/dashboard",
-          })
-          if (result.error) setError(result.error.message ?? "Sign up failed")
-        } else {
-          const result = await authClient.signIn.email({
-            email,
-            password,
-            callbackURL: "/dashboard",
-          })
-          if (result.error) {
-            const status =
-              typeof result.error === "object" &&
-              result.error &&
-              "status" in result.error &&
-              typeof (result.error as { status?: unknown }).status === "number"
-                ? (result.error as { status: number }).status
-                : null
+        const data = (await res.json()) as EmailStatusResponse
+        setEmailStatus(data)
 
-            setError(
-              status === 403
-                ? "Please verify your email address to sign in."
-                : result.error.message ?? "Sign in failed",
-            )
-          }
+        if (!data.ok) {
+          setError("Something went wrong. Please try again.")
+          return
         }
+
+        if (!data.allowlisted) {
+          setError("This email does not have access. Contact an administrator.")
+          return
+        }
+
+        if (data.hasAuthUser) {
+          setStep("password")
+          return
+        }
+
+        setStep("setup-link")
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong")
       } finally {
         setIsSubmitting(false)
       }
     },
-    [email, mode, name, password, resetRedirectTo],
+    [email],
   )
 
-  const onOpenDevResetLink = React.useCallback(async () => {
-    setError(null)
-    setNotice(null)
-    setIsSubmitting(true)
-    try {
-      const res = await fetch(
-        `/api/auth/dev-reset-link?email=${encodeURIComponent(email)}`,
-      )
-      if (!res.ok) {
-        setError("Dev reset link is unavailable.")
+  const onSignInWithPassword = React.useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      setError(null)
+      setNotice(null)
+      const normalizedEmail = normalizeEmail(email)
+      if (!normalizedEmail) {
+        setError("Enter your email address.")
         return
       }
-      const data = (await res.json()) as { ok: boolean; url: string | null }
-      if (!data.ok || !data.url) {
-        setError("No reset link found yet. Submit the reset request first.")
-        return
+      setEmail(normalizedEmail)
+      setIsSubmitting(true)
+      try {
+        const result = await authClient.signIn.email({
+          email: normalizedEmail,
+          password,
+          callbackURL: "/",
+        })
+        if (result.error) {
+          setError(result.error.message ?? "Sign in failed")
+          return
+        }
+        router.replace("/")
+        router.refresh()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Something went wrong")
+      } finally {
+        setIsSubmitting(false)
       }
-      window.location.assign(data.url)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to open reset link")
-    } finally {
-      setIsSubmitting(false)
-    }
-  }, [email])
+    },
+    [email, password, router],
+  )
 
   return (
     <div className="mx-auto w-full max-w-md space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          {mode === "sign-up"
-            ? "Create account"
-            : mode === "forgot"
-              ? "Reset password"
-              : "Sign in"}
+          Sign in
         </h1>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setError(null)
-            setNotice(null)
-            setMode(mode === "sign-in" ? "sign-up" : "sign-in")
-          }}
-        >
-          {mode === "sign-in" ? "Need an account?" : "Have an account?"}
-        </Button>
+        {step !== "email" ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resetFlow}
+            disabled={isSubmitting}
+          >
+            Use a different email
+          </Button>
+        ) : null}
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-3">
-        {mode === "sign-up" ? (
-          <>
-            <InputGroup>
-              <InputGroupInput
-                placeholder="Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoComplete="name"
-                required
-              />
-            </InputGroup>
-          </>
-        ) : null}
-
+      <form onSubmit={onContinue} className="space-y-3">
         <InputGroup>
           <InputGroupInput
             placeholder="Email"
@@ -164,40 +202,9 @@ export function LoginForm({
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
             required
+            disabled={isSubmitting || step !== "email"}
           />
         </InputGroup>
-
-        {mode !== "forgot" ? (
-          <InputGroup>
-            <InputGroupInput
-              placeholder="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={
-                mode === "sign-up" ? "new-password" : "current-password"
-              }
-              required
-            />
-          </InputGroup>
-        ) : null}
-
-        {mode === "sign-in" ? (
-          <div className="-mt-1 flex justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setError(null)
-                setNotice(null)
-                setMode("forgot")
-              }}
-            >
-              Forgot password?
-            </Button>
-          </div>
-        ) : null}
 
         {error ? (
           <div className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
@@ -211,28 +218,74 @@ export function LoginForm({
           </div>
         ) : null}
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting
-            ? "Working…"
-            : mode === "forgot"
-              ? "Send reset link"
-              : mode === "sign-up"
-              ? "Sign up"
-              : "Sign in"}
-        </Button>
-
-        {mode === "forgot" && process.env.NODE_ENV !== "production" ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={onOpenDevResetLink}
-            disabled={isSubmitting || !email}
-          >
-            Open reset link (dev)
+        {step === "email" ? (
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? "Working…" : "Continue"}
           </Button>
         ) : null}
       </form>
+
+      {step === "password" ? (
+        <form onSubmit={onSignInWithPassword} className="space-y-3 pt-2">
+          <InputGroup>
+            <InputGroupInput
+              placeholder="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+              disabled={isSubmitting}
+            />
+          </InputGroup>
+
+          <div className="grid gap-2">
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Working…" : "Sign in"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={requestPasswordLink}
+              disabled={isSubmitting || !normalizeEmail(email)}
+            >
+              Send password link
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
+      {step === "setup-link" ? (
+        <div className="space-y-3 pt-2">
+          <div className="rounded border border-zinc-200 bg-white p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-black dark:text-zinc-200">
+            No account exists for this email yet. Click below to get a password
+            link and create your account.
+          </div>
+
+          <Button
+            type="button"
+            className="w-full"
+            onClick={requestPasswordLink}
+            disabled={isSubmitting || !normalizeEmail(email)}
+          >
+            {isSubmitting ? "Working…" : "Send password link"}
+          </Button>
+        </div>
+      ) : null}
+
+      <p className="text-xs text-zinc-600 dark:text-zinc-300">
+        Only emails in the clients or team members list can sign in.
+        {emailStatus?.allowlisted ? (
+          <span>
+            {" "}
+            ({emailStatus.allowlistType === "team_member"
+              ? "Team member"
+              : "Client"}{" "}
+            email detected.)
+          </span>
+        ) : null}
+      </p>
     </div>
   )
 }
