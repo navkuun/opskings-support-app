@@ -10,7 +10,7 @@ import { appUsers } from "@/lib/db/schema/app-users"
 
 export const runtime = "nodejs"
 
-export default async function ProtectedPage() {
+export default async function Page() {
   const session = await getAuth().api.getSession({
     headers: await headers(),
   })
