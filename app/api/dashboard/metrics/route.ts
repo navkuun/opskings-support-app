@@ -244,6 +244,26 @@ export async function GET(req: Request) {
     `,
   )
 
+  const byPriorityStatusRows = await db.execute<{
+    priority: string
+    status: "open" | "resolved"
+    count: number
+  }>(
+    sql`
+      select
+        coalesce(priority, 'unknown') as priority,
+        case
+          when coalesce(status, 'open') <> 'resolved' then 'open'
+          else 'resolved'
+        end as status,
+        count(*)::int as count
+      from tickets
+      where ${ticketWhere}
+      group by 1, 2
+      order by 1 asc, 2 asc
+    `,
+  )
+
   const createdByMonth = Object.fromEntries(
     createdByMonthRows.rows.map((r) => [r.month, r.count]),
   )
@@ -268,5 +288,6 @@ export async function GET(req: Request) {
     avgResolutionHoursByMonth,
     ticketsByType: byTypeRows.rows,
     ticketsByPriority: byPriorityRows.rows,
+    ticketsByPriorityStatus: byPriorityStatusRows.rows,
   })
 }

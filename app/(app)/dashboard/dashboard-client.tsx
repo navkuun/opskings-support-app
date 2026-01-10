@@ -125,6 +125,38 @@ function updateSearchParams(
   router.replace(`?${next.toString()}`)
 }
 
+function SegmentedButtons<T extends string>({
+  value,
+  onValueChange,
+  items,
+  ariaLabel,
+}: {
+  value: T
+  onValueChange: (next: T) => void
+  items: Array<{ value: T; label: string }>
+  ariaLabel: string
+}) {
+  return (
+    <div
+      className="inline-flex rounded-lg border bg-muted/40 p-0.5"
+      role="group"
+      aria-label={ariaLabel}
+    >
+      {items.map((item) => (
+        <Button
+          key={item.value}
+          size="xs"
+          variant={item.value === value ? "secondary" : "ghost"}
+          className="h-6 px-2 text-xs"
+          onClick={() => onValueChange(item.value)}
+        >
+          {item.label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 function KpiCard({
   title,
   value,
@@ -281,6 +313,7 @@ export function DashboardClient() {
     avgResolutionHoursByMonth: Record<string, number | null>
     ticketsByType: Array<{ ticketTypeId: number; count: number }>
     ticketsByPriority: Array<{ priority: string; count: number }>
+    ticketsByPriorityStatus: Array<{ priority: string; status: "open" | "resolved"; count: number }>
   }
 
   const [metrics, setMetrics] = React.useState<DashboardMetricsResponse | null>(null)
@@ -349,7 +382,8 @@ export function DashboardClient() {
     const resolvedSeries = months.map((m) => metrics?.resolvedByMonth[m] ?? 0)
 
     const ticketsOverTime = months.map((monthKey, idx) => ({
-      month: getMonthLabelLong(monthKey),
+      monthKey,
+      monthLabel: getMonthLabelLong(monthKey),
       created: createdSeries[idx] ?? 0,
       resolved: resolvedSeries[idx] ?? 0,
     }))
@@ -411,6 +445,7 @@ export function DashboardClient() {
       ticketsOverTime,
       typeRows,
       priorityRows,
+      priorityStatusRows: metrics?.ticketsByPriorityStatus ?? [],
       totalMoM,
       openMoM,
       avgResolutionMoM,
@@ -631,6 +666,7 @@ export function DashboardClient() {
       <TicketsByPriorityCard
         total={computed.total}
         rows={computed.priorityRows}
+        statusRows={computed.priorityStatusRows}
         isLoading={isLoading}
       />
     </div>
@@ -641,10 +677,29 @@ function TicketsOverTimeChart({
   data,
   isLoading,
 }: {
-  data: Array<{ month: string; created: number; resolved: number }>
+  data: Array<{ monthKey: string; monthLabel: string; created: number; resolved: number }>
   isLoading?: boolean
 }) {
   const id = React.useId()
+  const [range, setRange] = React.useState<"3m" | "6m" | "12m" | "ytd" | "all">("all")
+  const [series, setSeries] = React.useState<"both" | "created" | "resolved">("both")
+
+  const filteredData = React.useMemo(() => {
+    if (range === "all") return data
+    if (range === "ytd") {
+      const last = data[data.length - 1]?.monthKey
+      if (!last) return data
+      const yearPrefix = `${last.slice(0, 4)}-`
+      return data.filter((row) => row.monthKey.startsWith(yearPrefix))
+    }
+
+    const n = range === "3m" ? 3 : range === "6m" ? 6 : 12
+    return data.slice(-n)
+  }, [data, range])
+
+  const showCreated = series === "both" || series === "created"
+  const showResolved = series === "both" || series === "resolved"
+  const stackId = showCreated && showResolved ? "a" : undefined
 
   const chartConfig = {
     created: {
@@ -660,33 +715,67 @@ function TicketsOverTimeChart({
   return (
     <Card className="gap-4">
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-0.5">
             <CardTitle>Tickets over time</CardTitle>
             <div className="text-xs text-muted-foreground">
               Created vs resolved by month.
             </div>
           </div>
-          {isLoading ? (
-            <div className="text-xs text-muted-foreground">Loading…</div>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-4 pt-3 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 rounded-[2px]"
-              style={{
-                background: "linear-gradient(180deg, var(--chart-1), var(--chart-2))",
-              }}
-            />
-            Created
+            <div className="flex flex-col items-end gap-2">
+              {isLoading ? (
+                <div className="text-xs text-muted-foreground">Loading…</div>
+              ) : null}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <SegmentedButtons
+                  ariaLabel="Tickets over time series"
+                  value={series}
+                  onValueChange={setSeries}
+                  items={[
+                    { value: "both", label: "All" },
+                    { value: "created", label: "Created" },
+                    { value: "resolved", label: "Resolved" },
+                  ]}
+                />
+                <SegmentedButtons
+                  ariaLabel="Tickets over time range"
+                  value={range}
+                  onValueChange={setRange}
+                  items={[
+                    { value: "3m", label: "3m" },
+                    { value: "6m", label: "6m" },
+                    { value: "12m", label: "12m" },
+                    { value: "ytd", label: "YTD" },
+                    { value: "all", label: "All" },
+                  ]}
+                />
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 rounded-[2px]"
-              style={{ backgroundColor: "var(--chart-4)" }}
-            />
-            Resolved
+
+          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            {showCreated ? (
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 rounded-[2px]"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, var(--chart-1), var(--chart-2))",
+                  }}
+                />
+                Created
+              </div>
+            ) : null}
+            {showResolved ? (
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 rounded-[2px]"
+                  style={{ backgroundColor: "var(--chart-4)" }}
+                />
+                Resolved
+              </div>
+            ) : null}
           </div>
         </div>
       </CardHeader>
@@ -697,7 +786,7 @@ function TicketsOverTimeChart({
         >
           <BarChart
             accessibilityLayer
-            data={data}
+            data={filteredData}
             maxBarSize={20}
             margin={{ left: -12, right: 12, top: 12 }}
           >
@@ -713,7 +802,7 @@ function TicketsOverTimeChart({
               stroke="var(--border)"
             />
             <XAxis
-              dataKey="month"
+              dataKey="monthLabel"
               tickLine={false}
               tickMargin={12}
               interval={0}
@@ -761,8 +850,12 @@ function TicketsOverTimeChart({
                 />
               }
             />
-            <Bar dataKey="created" fill={`url(#${id}-gradient)`} stackId="a" />
-            <Bar dataKey="resolved" fill="var(--color-resolved)" stackId="a" />
+            {showCreated ? (
+              <Bar dataKey="created" fill={`url(#${id}-gradient)`} stackId={stackId} />
+            ) : null}
+            {showResolved ? (
+              <Bar dataKey="resolved" fill="var(--color-resolved)" stackId={stackId} />
+            ) : null}
           </BarChart>
         </ChartContainer>
       </CardContent>
@@ -777,9 +870,14 @@ function TicketsByTypeChart({
   rows: Array<{ label: string; count: number; pct: number }>
   isLoading?: boolean
 }) {
+  const [topN, setTopN] = React.useState<"5" | "8" | "12">("5")
+  const [labelMode, setLabelMode] = React.useState<"count" | "percent">("count")
+
+  const topCount = topN === "5" ? 5 : topN === "8" ? 8 : 12
+
   const slices = React.useMemo(() => {
-    const top = rows.slice(0, 5)
-    const rest = rows.slice(5)
+    const top = rows.slice(0, topCount)
+    const rest = rows.slice(topCount)
     const otherCount = rest.reduce((sum, r) => sum + r.count, 0)
 
     const result = top.map((r, idx) => ({
@@ -799,7 +897,12 @@ function TicketsByTypeChart({
     }
 
     return result
-  }, [rows])
+  }, [rows, topCount])
+
+  const totalTickets = React.useMemo(
+    () => slices.reduce((sum, slice) => sum + slice.count, 0),
+    [slices],
+  )
 
   const chartData = slices.map((slice) => ({
     type: slice.key,
@@ -824,16 +927,39 @@ function TicketsByTypeChart({
 
   return (
     <Card className="flex flex-col">
-      <CardHeader className="flex-row items-start justify-between">
+      <CardHeader className="flex-row items-start justify-between gap-3">
         <div className="space-y-0.5">
           <CardTitle>Tickets by type</CardTitle>
           <div className="text-xs text-muted-foreground">
             Top ticket types by volume.
           </div>
         </div>
-        {isLoading ? (
-          <div className="text-xs text-muted-foreground">Loading…</div>
-        ) : null}
+        <div className="flex flex-col items-end gap-2">
+          {isLoading ? (
+            <div className="text-xs text-muted-foreground">Loading…</div>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <SegmentedButtons
+              ariaLabel="Tickets by type top N"
+              value={topN}
+              onValueChange={setTopN}
+              items={[
+                { value: "5", label: "Top 5" },
+                { value: "8", label: "Top 8" },
+                { value: "12", label: "Top 12" },
+              ]}
+            />
+            <SegmentedButtons
+              ariaLabel="Tickets by type labels"
+              value={labelMode}
+              onValueChange={setLabelMode}
+              items={[
+                { value: "count", label: "#" },
+                { value: "percent", label: "%" },
+              ]}
+            />
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="flex-1 pb-0">
         <ChartContainer
@@ -869,6 +995,7 @@ function TicketsByTypeChart({
                 const rawTickets = payloadObj?.tickets
                 const tickets = typeof rawTickets === "number" ? rawTickets : Number(rawTickets)
                 if (!Number.isFinite(tickets) || tickets <= 0) return null
+                const pct = totalTickets ? (tickets / totalTickets) * 100 : 0
 
                 const RADIAN = Math.PI / 180
                 const radius = innerRadius + (outerRadius - innerRadius) * 0.55
@@ -884,7 +1011,9 @@ function TicketsByTypeChart({
                     fill="var(--foreground)"
                     className="text-[11px] font-medium"
                   >
-                    {formatCompactNumber(tickets)}
+                    {labelMode === "percent"
+                      ? `${Math.round(pct)}%`
+                      : formatCompactNumber(tickets)}
                   </text>
                 )
               }}
@@ -916,15 +1045,44 @@ function TicketsByTypeChart({
 function TicketsByPriorityCard({
   total,
   rows,
+  statusRows,
   isLoading,
 }: {
   total: number
   rows: Array<{ label: string; count: number; pct: number }>
+  statusRows: Array<{ priority: string; status: "open" | "resolved"; count: number }>
   isLoading?: boolean
 }) {
+  const [statusFilter, setStatusFilter] = React.useState<"all" | "open" | "resolved">(
+    "all",
+  )
+
+  const selected = React.useMemo(() => {
+    if (statusFilter === "all" || statusRows.length === 0) {
+      return { total, rows }
+    }
+
+    const map = new Map<string, number>()
+    for (const row of statusRows) {
+      if (row.status !== statusFilter) continue
+      map.set(row.priority.toLowerCase(), row.count)
+    }
+
+    const selectedTotal = Array.from(map.values()).reduce((sum, v) => sum + v, 0)
+    const selectedRows = Array.from(map.entries())
+      .map(([priority, count]) => ({
+        label: priority,
+        count,
+        pct: selectedTotal ? (count / selectedTotal) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+
+    return { total: selectedTotal, rows: selectedRows }
+  }, [rows, statusFilter, statusRows, total])
+
   const counts = React.useMemo(() => {
     const map = new Map<string, number>()
-    for (const row of rows) {
+    for (const row of selected.rows) {
       map.set(row.label.toLowerCase(), row.count)
     }
     return {
@@ -934,7 +1092,7 @@ function TicketsByPriorityCard({
       low: map.get("low") ?? 0,
       unknown: map.get("unknown") ?? 0,
     }
-  }, [rows])
+  }, [selected.rows])
 
   const segments = React.useMemo(() => {
     const base = [
@@ -948,8 +1106,12 @@ function TicketsByPriorityCard({
     return base.filter((s) => s.count > 0)
   }, [counts])
 
-  const top = segments[0]
-  const topPct = top && total ? Math.round((top.count / total) * 100) : 0
+  const dominant = React.useMemo(() => {
+    const sorted = segments.slice().sort((a, b) => b.count - a.count)
+    return sorted[0] ?? null
+  }, [segments])
+  const dominantPct =
+    dominant && selected.total ? Math.round((dominant.count / selected.total) * 100) : 0
 
   return (
     <Card className="gap-5">
@@ -958,30 +1120,44 @@ function TicketsByPriorityCard({
           <div className="space-y-0.5">
             <CardTitle>Tickets by priority</CardTitle>
             <div className="flex items-start gap-2">
-              <div className="text-2xl font-semibold">{formatCompactNumber(total)}</div>
+              <div className="text-2xl font-semibold">
+                {formatCompactNumber(selected.total)}
+              </div>
               {isLoading ? (
                 <Badge variant="outline" className="mt-1.5">
                   Loading…
                 </Badge>
               ) : (
                 <Badge className="mt-1.5 bg-muted text-muted-foreground border-none">
-                  {top ? `${top.label}: ${topPct}%` : "No data"}
+                  {dominant ? `${dominant.label}: ${dominantPct}%` : "No data"}
                 </Badge>
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
-            {segments.map((segment) => (
-              <div key={segment.key} className="flex items-center gap-2">
-                <div
-                  aria-hidden="true"
-                  className={cn("size-1.5 shrink-0 rounded-xs", segment.swatch)}
-                />
-                <div className="text-[13px]/3 text-muted-foreground/60">
-                  {segment.label}
+          <div className="flex flex-col items-end gap-2">
+            <SegmentedButtons
+              ariaLabel="Tickets by priority status"
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+              items={[
+                { value: "all", label: "All" },
+                { value: "open", label: "Open" },
+                { value: "resolved", label: "Resolved" },
+              ]}
+            />
+            <div className="flex flex-wrap items-center justify-end gap-4">
+              {segments.map((segment) => (
+                <div key={segment.key} className="flex items-center gap-2">
+                  <div
+                    aria-hidden="true"
+                    className={cn("size-1.5 shrink-0 rounded-xs", segment.swatch)}
+                  />
+                  <div className="text-[13px]/3 text-muted-foreground/60">
+                    {segment.label}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -992,7 +1168,7 @@ function TicketsByPriorityCard({
               key={segment.key}
               className={cn("h-full", segment.swatch)}
               style={{
-                width: `${total ? (segment.count / total) * 100 : 0}%`,
+                width: `${selected.total ? (segment.count / selected.total) * 100 : 0}%`,
               }}
             />
           ))}
@@ -1000,7 +1176,7 @@ function TicketsByPriorityCard({
 
         <div>
           <div className="mb-3 text-[13px]/3 text-muted-foreground/60">
-            Priority breakdown
+            Priority breakdown{statusFilter === "all" ? "" : ` (${statusFilter})`}
           </div>
           <ul className="divide-y divide-border text-sm">
             {segments.map((segment) => (
@@ -1010,7 +1186,8 @@ function TicketsByPriorityCard({
                   aria-hidden="true"
                 />
                 <span className="grow text-muted-foreground">
-                  {segment.label} priority tickets
+                  {segment.label} priority{" "}
+                  {statusFilter === "all" ? "tickets" : `${statusFilter} tickets`}
                 </span>
                 <span className="text-[13px]/3 font-medium text-foreground/70 tabular-nums">
                   {segment.count.toLocaleString()}
