@@ -137,7 +137,7 @@ export function NavUser({
             render={
               <SidebarMenuButton
                 size="lg"
-                className="h-auto data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!p-2"
+                className="h-auto data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!p-0"
               />
             }
           >
@@ -146,13 +146,17 @@ export function NavUser({
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
             <div className="flex min-w-0 flex-1 flex-col items-start text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate font-medium">{displayName}</span>
-              <span className="text-muted-foreground truncate text-xs">{user.email}</span>
-              {role ? (
-                <Badge variant="outline" className="mt-1 h-4 border-sidebar-border/60 text-[0.55rem]">
-                  {role}
-                </Badge>
-              ) : null}
+              <div className="flex min-w-0 flex-1 flex-col items-start text-left text-sm leading-tight">
+                  <div className="flex items-center gap-2 mb-1">
+                  <span className="truncate dark:text-white font-medium text-xs">{displayName}</span>
+                   {role ? (
+                    <Badge variant="outline" className="h-4 border-border rounded-none uppercase border-dashed">
+                      {role}
+                    </Badge>
+                  ) : null}
+                  </div>
+                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
+                </div>
             </div>
             <DotsThreeVerticalIcon className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
@@ -169,13 +173,15 @@ export function NavUser({
                   <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                 </Avatar>
                 <div className="flex min-w-0 flex-1 flex-col items-start text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{displayName}</span>
-                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
-                  {role ? (
-                    <Badge variant="outline" className="mt-1 h-4 border-border text-[0.55rem]">
+                  <div className="flex items-center gap-2 mb-1">
+                  <span className="truncate dark:text-white font-medium text-xs">{displayName}</span>
+                   {role ? (
+                    <Badge variant="outline" className="h-4 border-border rounded-none uppercase border-dashed">
                       {role}
                     </Badge>
                   ) : null}
+                  </div>
+                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>

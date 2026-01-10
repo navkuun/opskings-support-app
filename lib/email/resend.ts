@@ -106,3 +106,66 @@ export async function sendEmailVerificationEmail(input: {
     console.error("[Resend] Failed to send email verification email", error)
   }
 }
+
+export async function sendHelpRequestEmail(input: {
+  fromEmail: string
+  page: string
+  message: string
+}) {
+  const from = getRequiredEnv("RESEND_FROM")
+  const to =
+    process.env.RESEND_SUPPORT_TO?.trim() ||
+    process.env.RESEND_TEST_TO?.trim() ||
+    process.env.RESEND_REPLY_TO?.trim() ||
+    ""
+
+  if (!to) {
+    console.error("[Resend] RESEND_SUPPORT_TO (or RESEND_TEST_TO) is required for help requests")
+    return false
+  }
+
+  const subject = input.page
+    ? `Need help: ${input.page}`
+    : "Need help: OpsKings Support"
+
+  const text =
+    `From: ${input.fromEmail}\n` +
+    (input.page ? `Page: ${input.page}\n` : "") +
+    `\n` +
+    `${input.message}\n`
+
+  const html = `
+    <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5;">
+      <h2 style="margin: 0 0 12px;">Need help</h2>
+      <p style="margin: 0 0 10px; color: #374151;">
+        <strong>From:</strong> ${input.fromEmail}<br/>
+        ${input.page ? `<strong>Page:</strong> ${input.page}<br/>` : ""}
+      </p>
+      <div style="margin: 0; padding: 12px 14px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fafafa; white-space: pre-wrap;">
+        ${input.message.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}
+      </div>
+    </div>
+  `.trim()
+
+  try {
+    const resend = getResend()
+    const result = await resend.emails.send({
+      from,
+      to,
+      subject,
+      text,
+      html,
+      replyTo: input.fromEmail,
+    })
+
+    if ("error" in result && result.error) {
+      console.error("[Resend] Failed to send help request email", result.error)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error("[Resend] Failed to send help request email", error)
+    return false
+  }
+}

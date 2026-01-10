@@ -61,21 +61,21 @@ function CrownSidebarMenuLink({
         "h-10 !items-stretch gap-0 overflow-visible rounded-none p-0 text-sm",
         "hover:bg-transparent hover:text-inherit active:bg-transparent active:text-inherit",
         "data-active:bg-transparent data-active:text-inherit",
-        "group-data-[collapsible=icon]:p-2!"
+        "group-data-[collapsible=icon]:p-0!"
       )}
     >
       <span
         className={cn(
           "hidden size-full items-center justify-center group-data-[collapsible=icon]:flex",
           isActive
-            ? "rounded-md bg-primary text-primary-foreground"
+            ? "rounded-md bg-primary text-white"
             : "rounded-md text-sidebar-foreground/60 dark:text-white group-hover/menu-button:text-sidebar-foreground dark:group-hover/menu-button:text-white"
         )}
       >
         <Icon
           className={cn(
             "size-5 shrink-0 transition-colors",
-            isActive ? "text-primary-foreground" : "text-current"
+            isActive ? "text-white" : "text-current"
           )}
         />
         <span className="sr-only">{item.title}</span>
@@ -83,9 +83,9 @@ function CrownSidebarMenuLink({
 
       <div
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-3 px-3 py-2 transition-colors group-data-[collapsible=icon]:hidden",
+          "flex min-w-0 flex-1 items-center gap-3 px-3 py-2 leading-4 transition-colors group-data-[collapsible=icon]:hidden",
           isActive
-            ? "bg-primary text-primary-foreground"
+            ? "bg-primary text-white"
             : "bg-sidebar-accent/20 text-sidebar-foreground/70 dark:text-white group-hover/menu-button:bg-sidebar-accent/30 group-hover/menu-button:text-sidebar-foreground dark:group-hover/menu-button:text-white"
         )}
       >
@@ -130,7 +130,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
       className={cn("border-sidebar-border/60", className)}
       {...props}
     >
-      <SidebarHeader className="px-4 py-6">
+      <SidebarHeader className="px-4 py-6 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-4">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -139,7 +139,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
               render={<Link href="/dashboard" />}
               className={cn(
                 "h-auto justify-start bg-transparent p-0 hover:bg-transparent",
-                "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!p-2"
+                "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!p-0"
               )}
             >
               <Image
@@ -157,7 +157,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
       </SidebarHeader>
 
       <SidebarContent className="pt-2">
-        <SidebarGroup className="px-4">
+        <SidebarGroup className="px-4 group-data-[collapsible=icon]:px-2">
           <SidebarGroupContent className="text-sm">
             <SidebarMenu className="gap-2">
               {NAV_ITEMS.map((item) => (
