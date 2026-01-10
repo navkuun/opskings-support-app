@@ -7,9 +7,12 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
+import { pgPolicy } from "drizzle-orm/pg-core"
 
 import { teamMembers } from "./team-members"
 import { tickets } from "./tickets"
+import { rlsIsInternal, rlsIsClientForTicketId } from "./rls"
 
 export const ticketMessages = pgTable(
   "ticket_messages",
@@ -31,5 +34,30 @@ export const ticketMessages = pgTable(
       t.ticketId,
       t.createdAt,
     ),
+
+    ticketMessagesSelect: pgPolicy("ticket_messages_select", {
+      for: "select",
+      using: sql`(${rlsIsInternal} or ${rlsIsClientForTicketId(t.ticketId)})`,
+    }),
+    ticketMessagesInsert: pgPolicy("ticket_messages_insert", {
+      for: "insert",
+      withCheck: sql`(
+        ${rlsIsInternal}
+        or (
+          ${rlsIsClientForTicketId(t.ticketId)}
+          and ${t.fromClient} = true
+          and ${t.fromTeamMemberId} is null
+        )
+      )`,
+    }),
+    ticketMessagesUpdateInternal: pgPolicy("ticket_messages_update_internal", {
+      for: "update",
+      using: rlsIsInternal,
+      withCheck: rlsIsInternal,
+    }),
+    ticketMessagesDeleteInternal: pgPolicy("ticket_messages_delete_internal", {
+      for: "delete",
+      using: rlsIsInternal,
+    }),
   }),
-)
+).enableRLS()

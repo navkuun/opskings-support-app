@@ -42,7 +42,7 @@ export default async function Page() {
   }
 
   if (appUser.userType !== "internal") {
-    redirect("/client")
+    redirect("/tickets")
   }
 
   return (

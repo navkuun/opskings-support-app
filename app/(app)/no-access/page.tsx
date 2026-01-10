@@ -39,7 +39,7 @@ export default async function Page() {
   const status = appUser?.accountStatus ?? "pending"
 
   if (appUser?.accountStatus === "active") {
-    redirect(appUser.userType === "client" ? "/client" : "/dashboard")
+    redirect(appUser.userType === "client" ? "/tickets" : "/dashboard")
   }
 
   const heading =

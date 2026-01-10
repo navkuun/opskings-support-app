@@ -31,7 +31,7 @@ function getHeaderTitle(pathname: string) {
   const explicit: Record<string, string> = {
     "/": "OpsKings Support",
     "/dashboard": "Dashboard",
-    "/client": "Client",
+    "/tickets": "Tickets",
     "/no-access": "No access",
     "/protected": "Protected",
     "/design-system": "Design system",

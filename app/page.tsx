@@ -35,7 +35,7 @@ export default async function Page() {
       redirect("/no-access")
     }
     if (appUser.userType === "client") {
-      redirect("/client")
+      redirect("/tickets")
     }
     redirect("/dashboard")
   }

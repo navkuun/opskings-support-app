@@ -1,0 +1,396 @@
+"use client"
+
+import * as React from "react"
+import {
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  type PaginationState,
+  type RowSelectionState,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table"
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Frame, FrameFooter } from "@/components/ui/frame"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+export type ClientTicketRow = {
+  id: number
+  title: string
+  clientName?: string | null
+  ticketType: string
+  status: string | null
+  priority: string | null
+  createdAt: string | null
+}
+
+function formatLabel(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return value
+
+  return trimmed
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0]!.toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
+function getStatusDot(status: string | null) {
+  const value = (status ?? "").toLowerCase()
+  if (!value) return "bg-muted-foreground/50"
+  if (value.includes("resolved") || value.includes("closed")) return "bg-emerald-500"
+  if (value.includes("progress")) return "bg-amber-500"
+  if (value.includes("hold") || value.includes("blocked")) return "bg-blue-500"
+  if (value.includes("cancel")) return "bg-rose-500"
+  return "bg-muted-foreground/50"
+}
+
+function getPriorityDot(priority: string | null) {
+  const value = (priority ?? "").toLowerCase()
+  if (!value) return "bg-muted-foreground/50"
+  if (value.includes("urgent")) return "bg-rose-500"
+  if (value.includes("high")) return "bg-amber-500"
+  if (value.includes("medium")) return "bg-blue-500"
+  if (value.includes("low")) return "bg-emerald-500"
+  return "bg-muted-foreground/50"
+}
+
+const columns: ColumnDef<ClientTicketRow>[] = [
+  {
+    id: "select",
+    size: 28,
+    enableSorting: false,
+    header: ({ table }) => {
+      const isAllSelected = table.getIsAllPageRowsSelected()
+      const isSomeSelected = table.getIsSomePageRowsSelected()
+
+      return (
+        <Checkbox
+          aria-label="Select all rows"
+          checked={isAllSelected}
+          indeterminate={isSomeSelected && !isAllSelected}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        />
+      )
+    },
+    cell: ({ row }) => (
+      <Checkbox
+        aria-label="Select row"
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+      />
+    ),
+  },
+  {
+    accessorKey: "id",
+    header: "ID",
+    size: 80,
+    cell: ({ row }) => (
+      <div className="font-mono text-xs text-muted-foreground">#{row.getValue("id")}</div>
+    ),
+  },
+  {
+    accessorKey: "title",
+    header: "Title",
+    size: 320,
+    cell: ({ row }) => <div className="font-medium">{row.getValue("title")}</div>,
+  },
+  {
+    accessorKey: "clientName",
+    header: "Client",
+    size: 180,
+    cell: ({ row }) => {
+      const value = row.getValue("clientName") as string | null | undefined
+      return value ? <div className="font-medium">{value}</div> : <span className="text-muted-foreground">—</span>
+    },
+  },
+  {
+    accessorKey: "ticketType",
+    header: "Type",
+    size: 160,
+    cell: ({ row }) => <div className="text-muted-foreground">{row.getValue("ticketType")}</div>,
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    size: 150,
+    cell: ({ row }) => {
+      const status = row.getValue("status") as string | null
+      const label = status ? formatLabel(status) : "—"
+
+      return (
+        <Badge variant="outline">
+          <span aria-hidden="true" className={cn("size-1.5 rounded-full", getStatusDot(status))} />
+          {label}
+        </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: "priority",
+    header: "Priority",
+    size: 140,
+    cell: ({ row }) => {
+      const priority = row.getValue("priority") as string | null
+      const label = priority ? formatLabel(priority) : "—"
+
+      return (
+        <Badge variant="outline">
+          <span aria-hidden="true" className={cn("size-1.5 rounded-full", getPriorityDot(priority))} />
+          {label}
+        </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: "createdAt",
+    header: "Created",
+    size: 200,
+    sortingFn: (a, b) => {
+      const aMs = a.original.createdAt ? Date.parse(a.original.createdAt) : 0
+      const bMs = b.original.createdAt ? Date.parse(b.original.createdAt) : 0
+      return aMs - bMs
+    },
+    cell: ({ row }) => {
+      const raw = row.getValue("createdAt") as string | null
+      if (!raw) return <span className="text-muted-foreground">—</span>
+
+      return (
+        <div className="text-muted-foreground tabular-nums">
+          {new Date(raw).toLocaleString()}
+        </div>
+      )
+    },
+  },
+]
+
+export function TicketsTable({
+  tickets,
+  showClient = false,
+}: {
+  tickets: ClientTicketRow[]
+  showClient?: boolean
+}) {
+  const pageSize = 10
+
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const [pagination, setPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize,
+  })
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: "createdAt", desc: true },
+  ])
+
+  const tableColumns = React.useMemo(() => {
+    if (showClient) return columns
+
+    return columns.filter((col) => {
+      const id =
+        "id" in col && typeof col.id === "string"
+          ? col.id
+          : "accessorKey" in col
+            ? (col.accessorKey as string | undefined)
+            : undefined
+      return id !== "clientName"
+    })
+  }, [showClient])
+
+  const table = useReactTable({
+    data: tickets,
+    columns: tableColumns,
+    enableSortingRemoval: false,
+    getRowId: (row) => String(row.id),
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
+    state: {
+      pagination,
+      rowSelection,
+      sorting,
+    },
+  })
+
+  const total = table.getRowCount()
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageCount = table.getPageCount()
+
+  const pageRanges = React.useMemo(
+    () => {
+      if (total === 0) return [{ label: "0-0", value: "1" }]
+
+      return Array.from({ length: pageCount }, (_, i) => {
+        const rangeStart = i * pageSize + 1
+        const rangeEnd = Math.min((i + 1) * pageSize, total)
+        const pageNum = i + 1
+        return { label: `${rangeStart}-${rangeEnd}`, value: String(pageNum) }
+      })
+    },
+    [pageCount, pageSize, total],
+  )
+
+  return (
+    <Frame className="w-full">
+      <Table className="table-fixed">
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                const columnSize = header.column.getSize()
+                const canSort = header.column.getCanSort()
+                const sort = header.column.getIsSorted()
+
+                return (
+                  <TableHead
+                    key={header.id}
+                    style={columnSize ? { width: `${columnSize}px` } : undefined}
+                    className={cn(canSort ? "cursor-pointer select-none" : "")}
+                    onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                    onKeyDown={(e) => {
+                      if (!canSort) return
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        header.column.getToggleSortingHandler()?.(e)
+                      }
+                    }}
+                    role={canSort ? "button" : undefined}
+                    tabIndex={canSort ? 0 : undefined}
+                  >
+                    <div className={cn("flex items-center justify-between gap-2", canSort ? "h-full" : "")}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                      {canSort
+                        ? {
+                            asc: <ChevronUpIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />,
+                            desc: <ChevronDownIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />,
+                          }[(sort as string) ?? ""] ?? null
+                        : null}
+                    </div>
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+
+        <TableBody>
+          {table.getRowModel().rows.length ? (
+            table.getRowModel().rows.map((row) => (
+              <TableRow data-state={row.getIsSelected() ? "selected" : undefined} key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell className="h-24 text-center" colSpan={tableColumns.length}>
+                No tickets found.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+
+      <FrameFooter className="p-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <p className="text-muted-foreground text-sm">Viewing</p>
+            <Select
+              items={pageRanges}
+              value={String(pageIndex + 1)}
+              onValueChange={(value) => {
+                const page = Number(value)
+                if (!Number.isFinite(page) || page < 1) return
+                table.setPageIndex(page - 1)
+              }}
+            >
+              <SelectTrigger aria-label="Select result range" className="w-fit" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectGroup>
+                  {pageRanges.map((range) => (
+                    <SelectItem key={range.value} value={range.value}>
+                      {range.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-sm">
+              of <strong className="font-medium text-foreground">{total}</strong> results
+            </p>
+          </div>
+
+          <Pagination className="justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  className="sm:*:[svg]:hidden"
+                  render={
+                    <Button
+                      disabled={!table.getCanPreviousPage()}
+                      onClick={() => table.previousPage()}
+                      size="sm"
+                      variant="outline"
+                    />
+                  }
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationNext
+                  className="sm:*:[svg]:hidden"
+                  render={
+                    <Button
+                      disabled={!table.getCanNextPage()}
+                      onClick={() => table.nextPage()}
+                      size="sm"
+                      variant="outline"
+                    />
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      </FrameFooter>
+    </Frame>
+  )
+}

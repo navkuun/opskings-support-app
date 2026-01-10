@@ -15,6 +15,12 @@ const eslintConfig = defineConfig([
     // Not part of the app (temporary reference code)
     "reference-ui/**",
   ]),
+  {
+    files: ["app/**/tickets/tickets-table.tsx"],
+    rules: {
+      "react-hooks/incompatible-library": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

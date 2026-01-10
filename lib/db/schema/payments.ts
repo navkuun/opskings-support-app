@@ -7,8 +7,11 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
+import { pgPolicy } from "drizzle-orm/pg-core"
 
 import { clients } from "./clients"
+import { rlsIsInternal, rlsIsClientForClientId } from "./rls"
 
 export const payments = pgTable(
   "payments",
@@ -26,5 +29,23 @@ export const payments = pgTable(
   (t) => ({
     clientIdIdx: index("idx_payments_client_id").on(t.clientId),
     paidAtIdx: index("idx_payments_paid_at").on(t.paidAt),
+
+    paymentsSelect: pgPolicy("payments_select", {
+      for: "select",
+      using: sql`(${rlsIsInternal} or ${rlsIsClientForClientId(t.clientId)})`,
+    }),
+    paymentsInsertInternal: pgPolicy("payments_insert_internal", {
+      for: "insert",
+      withCheck: rlsIsInternal,
+    }),
+    paymentsUpdateInternal: pgPolicy("payments_update_internal", {
+      for: "update",
+      using: rlsIsInternal,
+      withCheck: rlsIsInternal,
+    }),
+    paymentsDeleteInternal: pgPolicy("payments_delete_internal", {
+      for: "delete",
+      using: rlsIsInternal,
+    }),
   }),
-)
+).enableRLS()

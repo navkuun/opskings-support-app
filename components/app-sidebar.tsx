@@ -35,7 +35,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: HouseIcon },
-  { title: "Tickets", href: "/client", icon: TicketIcon },
+  { title: "Tickets", href: "/tickets", icon: TicketIcon },
 ]
 
 function isActivePath(pathname: string, href: string) {

@@ -47,10 +47,9 @@ Applies to users with `user_type=client` and `account_status=active`.
 
 | Route | Purpose | Access |
 |---|---|---|
-| `/client` | Their tickets list | ✅ client |
+| `/tickets` | Tickets list (client scoped; internal sees all) | ✅ internal + client |
 | `/client/tickets/new` | Create a ticket | ✅ client |
 | `/client/tickets/[id]` | Ticket detail + messages (only their ticket) | ✅ client |
 | `/client/tickets/[id]/feedback` | Leave feedback (resolved only) | ✅ client |
 | `/client/account` | Their client record (profile-like) | ✅ client |
 | `/client/payments` | Their payments | ✅ client |
-
