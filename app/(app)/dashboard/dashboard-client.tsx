@@ -63,11 +63,12 @@ function formatRating(value: number) {
 }
 
 function formatPercent(value: number) {
-  const sign = value > 0 ? "+" : ""
   const formatted = new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 1,
   }).format(Math.abs(value))
-  return `${sign}${value < 0 ? "-" : ""}${formatted}%`
+  if (value > 0) return `+ ${formatted}%`
+  if (value < 0) return `- ${formatted}%`
+  return `${formatted}%`
 }
 
 function percentChange(current: number | null | undefined, previous: number | null | undefined) {
@@ -86,6 +87,17 @@ function getMonthLabelLong(monthKey: string) {
   return new Date(Date.UTC(year, monthIdx, 1)).toLocaleString("en-US", {
     month: "short",
     year: "numeric",
+  })
+}
+
+function getMonthLabelShort(monthKey: string) {
+  const [y, m] = monthKey.split("-")
+  const year = Number(y)
+  const monthIdx = Number(m) - 1
+  if (!Number.isFinite(year) || !Number.isFinite(monthIdx)) return monthKey
+
+  return new Date(Date.UTC(year, monthIdx, 1)).toLocaleString("en-US", {
+    month: "short",
   })
 }
 
@@ -123,6 +135,20 @@ function updateSearchParams(
     else next.set(key, value)
   }
   router.replace(`?${next.toString()}`)
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = React.useState(false)
+
+  React.useEffect(() => {
+    const media = window.matchMedia(query)
+    const update = () => setMatches(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
+  }, [query])
+
+  return matches
 }
 
 function SegmentedButtons<T extends string>({
@@ -207,10 +233,10 @@ function KpiDelta({
   if (isLoading) {
     return (
       <div className="flex flex-col items-end gap-1">
-        <Badge variant="outline" className="h-6 px-2">
+        <Badge variant="outline" className="h-7 px-2.5 text-xs">
           …
         </Badge>
-        <span className="text-[10px] text-muted-foreground">{label}</span>
+        <span className="text-[11px] text-muted-foreground">{label}</span>
       </div>
     )
   }
@@ -218,10 +244,10 @@ function KpiDelta({
   if (value == null) {
     return (
       <div className="flex flex-col items-end gap-1">
-        <Badge variant="outline" className="h-6 px-2">
+        <Badge variant="outline" className="h-7 px-2.5 text-xs">
           —
         </Badge>
-        <span className="text-[10px] text-muted-foreground">{label}</span>
+        <span className="text-[11px] text-muted-foreground">{label}</span>
       </div>
     )
   }
@@ -236,12 +262,12 @@ function KpiDelta({
   const arrow = direction === "up" ? "▲" : direction === "down" ? "▼" : "•"
 
   return (
-      <div className="flex flex-col items-end gap-1">
-        <Badge className={cn("h-6 border-none px-2 font-medium", classes)}>
-          <span className="mr-1 text-[10px]">{arrow}</span>
-          {formatPercent(value)}
-        </Badge>
-      <span className="text-[10px] text-muted-foreground">{label}</span>
+    <div className="flex flex-col items-end gap-1">
+      <Badge className={cn("h-7 border-none px-2.5 text-xs font-semibold", classes)}>
+        <span className="mr-1 text-[11px]">{arrow}</span>
+        {formatPercent(value)}
+      </Badge>
+      <span className="text-[11px] text-muted-foreground">{label}</span>
     </div>
   )
 }
@@ -681,21 +707,35 @@ function TicketsOverTimeChart({
   isLoading?: boolean
 }) {
   const id = React.useId()
-  const [range, setRange] = React.useState<"3m" | "6m" | "12m" | "ytd" | "all">("all")
   const [series, setSeries] = React.useState<"both" | "created" | "resolved">("both")
+  const isSmallScreen = useMediaQuery("(max-width: 640px)")
 
-  const filteredData = React.useMemo(() => {
-    if (range === "all") return data
-    if (range === "ytd") {
-      const last = data[data.length - 1]?.monthKey
-      if (!last) return data
-      const yearPrefix = `${last.slice(0, 4)}-`
-      return data.filter((row) => row.monthKey.startsWith(yearPrefix))
+  const years = React.useMemo(() => {
+    const unique = new Set<string>()
+    for (const row of data) {
+      unique.add(row.monthKey.slice(0, 4))
+    }
+    return Array.from(unique).sort()
+  }, [data])
+
+  const defaultYear = years[years.length - 1] ?? "all"
+  const [year, setYear] = React.useState<string>(defaultYear)
+
+  React.useEffect(() => {
+    if (!years.length) {
+      if (year !== "all") setYear("all")
+      return
     }
 
-    const n = range === "3m" ? 3 : range === "6m" ? 6 : 12
-    return data.slice(-n)
-  }, [data, range])
+    if (!years.includes(year)) {
+      setYear(defaultYear)
+    }
+  }, [defaultYear, year, years])
+
+  const filteredData = React.useMemo(() => {
+    if (year === "all") return data
+    return data.filter((row) => row.monthKey.startsWith(`${year}-`))
+  }, [data, year])
 
   const showCreated = series === "both" || series === "created"
   const showResolved = series === "both" || series === "resolved"
@@ -717,12 +757,12 @@ function TicketsOverTimeChart({
       <CardHeader>
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-0.5">
-            <CardTitle>Tickets over time</CardTitle>
-            <div className="text-xs text-muted-foreground">
-              Created vs resolved by month.
+            <div className="space-y-0.5">
+              <CardTitle>Tickets over time</CardTitle>
+              <div className="text-xs text-muted-foreground">
+                Created vs resolved by month.
+              </div>
             </div>
-          </div>
             <div className="flex flex-col items-end gap-2">
               {isLoading ? (
                 <div className="text-xs text-muted-foreground">Loading…</div>
@@ -738,18 +778,26 @@ function TicketsOverTimeChart({
                     { value: "resolved", label: "Resolved" },
                   ]}
                 />
-                <SegmentedButtons
-                  ariaLabel="Tickets over time range"
-                  value={range}
-                  onValueChange={setRange}
-                  items={[
-                    { value: "3m", label: "3m" },
-                    { value: "6m", label: "6m" },
-                    { value: "12m", label: "12m" },
-                    { value: "ytd", label: "YTD" },
-                    { value: "all", label: "All" },
-                  ]}
-                />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Year</span>
+                  <Select
+                    value={year}
+                    onValueChange={(next) => setYear(next ?? defaultYear)}
+                  >
+                    <SelectTrigger size="sm" className="h-6">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      <SelectGroup>
+                        {years.map((y) => (
+                          <SelectItem key={y} value={y}>
+                            {y}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>
@@ -802,11 +850,16 @@ function TicketsOverTimeChart({
               stroke="var(--border)"
             />
             <XAxis
-              dataKey="monthLabel"
+              dataKey="monthKey"
               tickLine={false}
               tickMargin={12}
               interval={0}
               stroke="var(--border)"
+              tickFormatter={(value) =>
+                isSmallScreen
+                  ? getMonthLabelShort(String(value))
+                  : getMonthLabelLong(String(value))
+              }
             />
             <YAxis
               tickLine={false}
@@ -817,6 +870,7 @@ function TicketsOverTimeChart({
               content={
                 <ChartTooltipContent
                   hideIndicator
+                  labelFormatter={(value) => getMonthLabelLong(String(value))}
                   formatter={(value, name) => {
                     const meta =
                       name === "created"
@@ -927,14 +981,14 @@ function TicketsByTypeChart({
 
   return (
     <Card className="flex flex-col">
-      <CardHeader className="flex-row items-start justify-between gap-3">
-        <div className="space-y-0.5">
+      <CardHeader className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-0.5">
           <CardTitle>Tickets by type</CardTitle>
           <div className="text-xs text-muted-foreground">
             Top ticket types by volume.
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="shrink-0 flex flex-col items-end gap-2">
           {isLoading ? (
             <div className="text-xs text-muted-foreground">Loading…</div>
           ) : null}
@@ -1106,32 +1160,19 @@ function TicketsByPriorityCard({
     return base.filter((s) => s.count > 0)
   }, [counts])
 
-  const dominant = React.useMemo(() => {
-    const sorted = segments.slice().sort((a, b) => b.count - a.count)
-    return sorted[0] ?? null
-  }, [segments])
-  const dominantPct =
-    dominant && selected.total ? Math.round((dominant.count / selected.total) * 100) : 0
-
   return (
     <Card className="gap-5">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-0.5">
             <CardTitle>Tickets by priority</CardTitle>
-            <div className="flex items-start gap-2">
+            <div className="flex items-baseline gap-2">
               <div className="text-2xl font-semibold">
                 {formatCompactNumber(selected.total)}
               </div>
               {isLoading ? (
-                <Badge variant="outline" className="mt-1.5">
-                  Loading…
-                </Badge>
-              ) : (
-                <Badge className="mt-1.5 bg-muted text-muted-foreground border-none">
-                  {dominant ? `${dominant.label}: ${dominantPct}%` : "No data"}
-                </Badge>
-              )}
+                <span className="text-xs text-muted-foreground">Loading…</span>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
