@@ -85,6 +85,8 @@ export function getAuth() {
         void sendEmailVerificationEmail({
           to: user.email,
           verifyUrl: url,
+        }).catch((error) => {
+          console.error("[Better Auth] Failed to send verification email", error)
         })
       },
     },
@@ -100,9 +102,19 @@ export function getAuth() {
           )
         }
 
-        await sendPasswordResetEmail({
+        if (process.env.NODE_ENV === "production") {
+          await sendPasswordResetEmail({
+            to: user.email,
+            resetUrl: url,
+          })
+          return
+        }
+
+        void sendPasswordResetEmail({
           to: user.email,
           resetUrl: url,
+        }).catch((error) => {
+          console.error("[Better Auth][dev] Failed to send password reset email", error)
         })
       },
       onPasswordReset: async ({ user }) => {

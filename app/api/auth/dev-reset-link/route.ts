@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: !!entry,
     url: entry?.url ?? null,
+    token: entry?.token ?? null,
     createdAt: entry?.createdAt ?? null,
   })
 }
-

@@ -6,13 +6,10 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core"
-import { sql } from "drizzle-orm"
-import { pgPolicy } from "drizzle-orm/pg-core"
 
 import { clients } from "./clients"
 import { teamMembers } from "./team-members"
 import { ticketTypes } from "./ticket-types"
-import { rlsIsInternal, rlsIsClientForClientId } from "./rls"
 
 export const tickets = pgTable(
   "tickets",
@@ -48,23 +45,5 @@ export const tickets = pgTable(
     priorityIdx: index("idx_tickets_priority").on(t.priority),
     createdAtIdx: index("idx_tickets_created_at").on(t.createdAt),
     resolvedAtIdx: index("idx_tickets_resolved_at").on(t.resolvedAt),
-
-    ticketsSelect: pgPolicy("tickets_select", {
-      for: "select",
-      using: sql`(${rlsIsInternal} or ${rlsIsClientForClientId(t.clientId)})`,
-    }),
-    ticketsInsert: pgPolicy("tickets_insert", {
-      for: "insert",
-      withCheck: sql`(${rlsIsInternal} or ${rlsIsClientForClientId(t.clientId)})`,
-    }),
-    ticketsUpdateInternal: pgPolicy("tickets_update_internal", {
-      for: "update",
-      using: rlsIsInternal,
-      withCheck: rlsIsInternal,
-    }),
-    ticketsDeleteInternal: pgPolicy("tickets_delete_internal", {
-      for: "delete",
-      using: rlsIsInternal,
-    }),
   }),
-).enableRLS()
+)

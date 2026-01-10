@@ -5,10 +5,6 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core"
-import { sql } from "drizzle-orm"
-import { pgPolicy } from "drizzle-orm/pg-core"
-
-import { rlsIsInternal, rlsIsClientForClientId } from "./rls"
 
 export const clients = pgTable(
   "clients",
@@ -21,23 +17,4 @@ export const clients = pgTable(
     monthlyBudget: numeric("monthly_budget", { precision: 10, scale: 2, mode: "number" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
-  (t) => ({
-    clientsSelect: pgPolicy("clients_select", {
-      for: "select",
-      using: sql`(${rlsIsInternal} or ${rlsIsClientForClientId(t.id)})`,
-    }),
-    clientsInsertInternal: pgPolicy("clients_insert_internal", {
-      for: "insert",
-      withCheck: rlsIsInternal,
-    }),
-    clientsUpdateInternal: pgPolicy("clients_update_internal", {
-      for: "update",
-      using: rlsIsInternal,
-      withCheck: rlsIsInternal,
-    }),
-    clientsDeleteInternal: pgPolicy("clients_delete_internal", {
-      for: "delete",
-      using: rlsIsInternal,
-    }),
-  }),
-).enableRLS()
+)
