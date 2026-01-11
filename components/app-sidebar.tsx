@@ -6,6 +6,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   HouseIcon,
+  type IconProps,
+  type IconWeight,
   TicketIcon,
 } from "@phosphor-icons/react"
 
@@ -30,7 +32,8 @@ import { authClient } from "@/lib/auth-client"
 type NavItem = {
   title: string
   href: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: React.ComponentType<IconProps>
+  iconWeight?: IconWeight
 }
 
 type NavGroup = {
@@ -41,11 +44,25 @@ type NavGroup = {
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "General",
-    items: [{ title: "Dashboard", href: "/dashboard", icon: HouseIcon }],
+    items: [
+      {
+        title: "Dashboard",
+        href: "/dashboard",
+        icon: HouseIcon,
+        iconWeight: "fill",
+      },
+    ],
   },
   {
     label: "Support",
-    items: [{ title: "Tickets", href: "/tickets", icon: TicketIcon }],
+    items: [
+      {
+        title: "Tickets",
+        href: "/tickets",
+        icon: TicketIcon,
+        iconWeight: "fill",
+      },
+    ],
   },
 ]
 
@@ -76,6 +93,7 @@ function CrownSidebarMenuLink({
       )}
     >
       <Icon
+        weight={item.iconWeight}
         className={cn(
           "size-4 shrink-0",
           isActive ? "text-primary" : "text-sidebar-foreground/50"
@@ -126,7 +144,10 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
 
       <SidebarContent className="pt-2">
         {NAV_GROUPS.map((group, idx) => (
-          <SidebarGroup key={group.label} className="px-0 py-2">
+          <SidebarGroup
+            key={group.label}
+            className="px-0 py-2 group-data-[collapsible=icon]:px-2"
+          >
             <SidebarGroupLabel className="h-6 rounded-none px-4 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
               {group.label}
             </SidebarGroupLabel>
