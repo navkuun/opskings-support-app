@@ -392,6 +392,7 @@ export {
   ComboboxInput,
   ComboboxTrigger,
   ComboboxPopup,
+  ComboboxPopup as ComboboxContent,
   ComboboxItem,
   ComboboxSeparator,
   ComboboxGroup,

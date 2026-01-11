@@ -104,6 +104,7 @@ export const queries = defineQueries({
         from: z.number().optional(),
         to: z.number().optional(),
         department: z.string().min(1).max(50).optional(),
+        clientId: z.array(z.number().int().positive()).optional(),
         status: z.array(z.string().min(1).max(50)).optional(),
         priority: z.array(z.string().min(1).max(20)).optional(),
         ticketTypeId: z.array(z.number().int().positive()).optional(),
@@ -118,6 +119,7 @@ export const queries = defineQueries({
           from,
           to,
           department,
+          clientId,
           status,
           priority,
           ticketTypeId,
@@ -147,6 +149,10 @@ export const queries = defineQueries({
             (tt) => tt.where("department", department),
             { flip: true },
           )
+        }
+
+        if (clientId && clientId.length) {
+          q = q.where("clientId", "IN", clientId)
         }
 
         if (status && status.length) {

@@ -86,17 +86,23 @@ type TicketCursor = {
 
 export function TicketsPageClient({
   userType,
+  internalRole,
   teamMemberId,
 }: {
   userType: "internal" | "client"
+  internalRole: "support_agent" | "manager" | "admin" | null
   teamMemberId: number | null
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  const canFilterClients =
+    userType === "internal" && (internalRole === "manager" || internalRole === "admin")
+
   const from = searchParams.get("from") ?? ""
   const to = searchParams.get("to") ?? ""
   const deptParam = searchParams.get("dept")
+  const clientParam = searchParams.get("clientId")
   const statusParam = searchParams.get("status")
   const priorityParam = searchParams.get("priority")
   const ticketTypeParam = searchParams.get("ticketTypeId")
@@ -110,6 +116,7 @@ export function TicketsPageClient({
     setSearchInput(searchParam)
   }, [searchParam])
 
+  const clientValues = React.useMemo(() => parseMultiParam(clientParam), [clientParam])
   const statusValues = React.useMemo(() => parseMultiParam(statusParam), [statusParam])
   const priorityValues = React.useMemo(() => parseMultiParam(priorityParam), [priorityParam])
   const ticketTypeValues = React.useMemo(() => parseMultiParam(ticketTypeParam), [ticketTypeParam])
@@ -119,6 +126,7 @@ export function TicketsPageClient({
   const [teamMembers, teamMembersResult] = useQuery(
     queries.teamMembers.internalList({ limit: 200 }),
   )
+  const [clients, clientsResult] = useQuery(queries.clients.list({ limit: 200 }))
 
   const defaultDepartment = React.useMemo(() => {
     if (userType !== "internal" || !teamMemberId) return null
@@ -162,6 +170,7 @@ export function TicketsPageClient({
   const includeUnassigned = React.useMemo(() => assignedToValues.includes("none"), [assignedToValues])
 
   const ticketTypeIds = React.useMemo(() => parseNumberTokens(ticketTypeValues), [ticketTypeValues])
+  const clientIds = React.useMemo(() => parseNumberTokens(clientValues), [clientValues])
 
   const trimmedSearch = searchInput.trim()
   const isSearchMode = trimmedSearch.length > 0
@@ -186,8 +195,11 @@ export function TicketsPageClient({
       assignedToIds.join("|"),
       includeUnassigned ? "1" : "0",
       trimmedSearch,
+      canFilterClients ? clientIds.join("|") : "",
     ].join("::")
   }, [
+    canFilterClients,
+    clientIds,
     assignedToIds,
     department,
     from,
@@ -214,6 +226,7 @@ export function TicketsPageClient({
     const statuses = statusValues.filter((value) => value !== "any")
     const priorities = priorityValues.filter((value) => value !== "any")
     const deptValue = userType === "internal" && department !== "all" ? department : undefined
+    const clientFilter = canFilterClients && clientIds.length ? clientIds : undefined
 
     return {
       limit: isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
@@ -221,6 +234,7 @@ export function TicketsPageClient({
       from: createdFrom,
       to: createdTo,
       department: deptValue,
+      clientId: clientFilter,
       status: statuses.length ? statuses : undefined,
       priority: priorities.length ? priorities : undefined,
       ticketTypeId: ticketTypeIds.length ? ticketTypeIds : undefined,
@@ -239,6 +253,8 @@ export function TicketsPageClient({
     statusValues,
     ticketTypeIds,
     userType,
+    canFilterClients,
+    clientIds,
   ])
 
   const [tickets] = useQuery(queries.tickets.list(queryArgs))
@@ -336,6 +352,23 @@ export function TicketsPageClient({
     [defaultDepartment, router, searchParams, userType],
   )
 
+  const handleClientChange = React.useCallback(
+    (next: string[]) => {
+      if (!canFilterClients) return
+
+      if (next.includes("any")) {
+        updateSearchParams(router, searchParams, { clientId: null })
+        return
+      }
+
+      const filtered = next.map((value) => value.trim()).filter(Boolean).filter((value) => value !== "any")
+      updateSearchParams(router, searchParams, {
+        clientId: filtered.length ? filtered.join(",") : null,
+      })
+    },
+    [canFilterClients, router, searchParams],
+  )
+
   const handleStatusChange = React.useCallback(
     (next: string[]) => {
       if (next.includes("any")) {
@@ -394,6 +427,7 @@ export function TicketsPageClient({
       from: null,
       to: null,
       dept: null,
+      clientId: null,
       status: null,
       priority: null,
       ticketTypeId: null,
@@ -425,27 +459,32 @@ export function TicketsPageClient({
 
   const isLoading =
     ticketTypesResult.type !== "complete" ||
-    (userType === "internal" && teamMembersResult.type !== "complete")
+    (userType === "internal" && teamMembersResult.type !== "complete") ||
+    (canFilterClients && clientsResult.type !== "complete")
 
   return (
     <div className="w-full pb-8">
       <TicketsFilterRow
         userType={userType}
+        internalRole={internalRole}
         from={from}
         to={to}
         search={searchInput}
         department={department}
         departmentOptions={departmentOptions}
+        clientValues={clientValues}
         statusValues={statusValues}
         priorityValues={priorityValues}
         ticketTypeValues={ticketTypeValues}
         assignedToValues={assignedToValues}
         ticketTypes={ticketTypes}
         teamMembers={teamMembers}
+        clients={clients}
         onFromChange={handleFromChange}
         onToChange={handleToChange}
         onSearchChange={handleSearchChange}
         onDepartmentChange={handleDepartmentChange}
+        onClientChange={handleClientChange}
         onStatusChange={handleStatusChange}
         onPriorityChange={handlePriorityChange}
         onTicketTypeChange={handleTicketTypeChange}

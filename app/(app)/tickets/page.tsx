@@ -28,6 +28,7 @@ export default async function Page() {
     .select({
       accountStatus: appUsers.accountStatus,
       userType: appUsers.userType,
+      internalRole: appUsers.internalRole,
       clientId: appUsers.clientId,
       teamMemberId: appUsers.teamMemberId,
     })
@@ -54,6 +55,7 @@ export default async function Page() {
     <main className="w-full">
       <TicketsPageClient
         userType={appUser.userType}
+        internalRole={appUser.internalRole ?? null}
         teamMemberId={appUser.teamMemberId ?? null}
       />
     </main>
