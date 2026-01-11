@@ -6,6 +6,17 @@ import { DatePickerSegment } from "@/components/dashboard/date-picker-segment"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
 import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxPopup,
+  ComboboxValue,
+} from "@/components/ui/combobox"
+import {
   Select,
   SelectContent,
   SelectGroup,
@@ -24,6 +35,11 @@ type TeamMemberRow = {
 type TicketTypeRow = {
   id: number
   typeName: string
+}
+
+type ComboboxOption = {
+  value: string
+  label: string
 }
 
 function isUnknownArray(value: unknown): value is unknown[] {
@@ -84,22 +100,56 @@ export function DashboardFilterRow({
   onPriorityChange: (next: string[]) => void
   onReset: () => void
 }) {
-  const teamMemberLabelByValue = React.useMemo(() => {
-    const map = new Map<string, string>()
-    map.set("none", "Unassigned")
-    for (const tm of teamMembers) {
-      map.set(String(tm.id), formatTeamMemberLabel(tm.username))
+  const ticketTypeComboboxItems = React.useMemo<ComboboxOption[]>(() => {
+    const items: ComboboxOption[] = [{ value: "any", label: "Any" }]
+    for (const tt of ticketTypes) {
+      items.push({ value: String(tt.id), label: tt.typeName })
+    }
+    return items
+  }, [ticketTypes])
+
+  const ticketTypeItemByValue = React.useMemo(() => {
+    const map = new Map<string, ComboboxOption>()
+    for (const item of ticketTypeComboboxItems) {
+      map.set(item.value, item)
     }
     return map
+  }, [ticketTypeComboboxItems])
+
+  const ticketTypeSelectedItems = React.useMemo(
+    () =>
+      ticketTypeValues
+        .map((value) => ticketTypeItemByValue.get(value))
+        .filter((value): value is ComboboxOption => Boolean(value)),
+    [ticketTypeItemByValue, ticketTypeValues],
+  )
+
+  const assigneeComboboxItems = React.useMemo<ComboboxOption[]>(() => {
+    const items: ComboboxOption[] = [
+      { value: "any", label: "Any" },
+      { value: "none", label: "Unassigned" },
+    ]
+    for (const tm of teamMembers) {
+      items.push({ value: String(tm.id), label: formatTeamMemberLabel(tm.username) })
+    }
+    return items
   }, [teamMembers])
 
-  const ticketTypeLabelByValue = React.useMemo(() => {
-    const map = new Map<string, string>()
-    for (const tt of ticketTypes) {
-      map.set(String(tt.id), tt.typeName)
+  const assigneeItemByValue = React.useMemo(() => {
+    const map = new Map<string, ComboboxOption>()
+    for (const item of assigneeComboboxItems) {
+      map.set(item.value, item)
     }
     return map
-  }, [ticketTypes])
+  }, [assigneeComboboxItems])
+
+  const assigneeSelectedItems = React.useMemo(
+    () =>
+      assignedToValues
+        .map((value) => assigneeItemByValue.get(value))
+        .filter((value): value is ComboboxOption => Boolean(value)),
+    [assignedToValues, assigneeItemByValue],
+  )
 
   const priorityLabelByValue = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -127,56 +177,85 @@ export function DashboardFilterRow({
         </div>
 
         <div className="flex h-10 items-stretch">
-          <Select multiple value={assignedToValues} onValueChange={onAssignedToChange}>
-            <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
-              <SelectValue>
-                {(value: unknown) =>
-                  renderMultiSelectValue({
-                    value,
-                    placeholder: "Assignees…",
-                    labelByValue: teamMemberLabelByValue,
-                  })
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectGroup>
-                <SelectItem value="any">Any</SelectItem>
-                <SelectItem value="none">Unassigned</SelectItem>
-                {teamMembers.map((tm) => (
-                  <SelectItem key={tm.id} value={String(tm.id)}>
-                    {formatTeamMemberLabel(tm.username)}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <Combobox
+            items={assigneeComboboxItems}
+            multiple
+            value={assigneeSelectedItems}
+            onValueChange={(next) => onAssignedToChange(next.map((item) => item.value))}
+          >
+            <ComboboxChips
+              className="no-scrollbar h-full w-full flex-nowrap overflow-x-auto overflow-y-hidden rounded-none border-0 bg-transparent px-2 py-0 shadow-none before:hidden focus-within:border-0 focus-within:ring-0 [&_[data-slot=combobox-chip]]:max-w-full [&_[data-slot=combobox-chip]]:shrink-0"
+              data-size="lg"
+            >
+              <ComboboxValue>
+                {(value: ComboboxOption[]) => (
+                  <>
+                    {value.map((item) => (
+                      <ComboboxChip aria-label={item.label} key={item.value}>
+                        <span className="truncate">{item.label}</span>
+                      </ComboboxChip>
+                    ))}
+                    <ComboboxInput
+                      aria-label="Filter by assignee"
+                      placeholder={value.length > 0 ? undefined : "Assignees…"}
+                      className="placeholder:text-muted-foreground/72"
+                    />
+                  </>
+                )}
+              </ComboboxValue>
+            </ComboboxChips>
+            <ComboboxPopup>
+              <ComboboxEmpty>No assignees found.</ComboboxEmpty>
+              <ComboboxList>
+                {(item: ComboboxOption) => (
+                  <ComboboxItem key={item.value} value={item}>
+                    {item.label}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxPopup>
+          </Combobox>
         </div>
 
         <div className="flex h-10 items-stretch">
-          <Select multiple value={ticketTypeValues} onValueChange={onTicketTypeChange}>
-            <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
-              <SelectValue>
-                {(value: unknown) =>
-                  renderMultiSelectValue({
-                    value,
-                    placeholder: "Ticket types…",
-                    labelByValue: ticketTypeLabelByValue,
-                  })
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectGroup>
-                <SelectItem value="any">Any</SelectItem>
-                {ticketTypes.map((tt) => (
-                  <SelectItem key={tt.id} value={String(tt.id)}>
-                    {tt.typeName}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <Combobox
+            items={ticketTypeComboboxItems}
+            multiple
+            value={ticketTypeSelectedItems}
+            onValueChange={(next) => onTicketTypeChange(next.map((item) => item.value))}
+          >
+            <ComboboxChips
+              className="no-scrollbar h-full w-full flex-nowrap overflow-x-auto overflow-y-hidden rounded-none border-0 bg-transparent px-2 py-0 shadow-none before:hidden focus-within:border-0 focus-within:ring-0 [&_[data-slot=combobox-chip]]:max-w-full [&_[data-slot=combobox-chip]]:shrink-0"
+              data-size="lg"
+            >
+              <ComboboxValue>
+                {(value: ComboboxOption[]) => (
+                  <>
+                    {value.map((item) => (
+                      <ComboboxChip aria-label={item.label} key={item.value}>
+                        <span className="truncate">{item.label}</span>
+                      </ComboboxChip>
+                    ))}
+                    <ComboboxInput
+                      aria-label="Filter by ticket type"
+                      placeholder={value.length > 0 ? undefined : "Ticket types…"}
+                      className="placeholder:text-muted-foreground/72"
+                    />
+                  </>
+                )}
+              </ComboboxValue>
+            </ComboboxChips>
+            <ComboboxPopup>
+              <ComboboxEmpty>No ticket types found.</ComboboxEmpty>
+              <ComboboxList>
+                {(item: ComboboxOption) => (
+                  <ComboboxItem key={item.value} value={item}>
+                    {item.label}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxPopup>
+          </Combobox>
         </div>
 
         <div className="flex h-10 items-stretch">
