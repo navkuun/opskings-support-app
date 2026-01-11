@@ -80,6 +80,7 @@ export function DatePickerSegment({
             unstyled
             value={formatDateLabel(date)}
             placeholder="Jan 01, 2025"
+            className="text-xs text-muted-foreground/72"
             readOnly
             onClick={() => setOpen(true)}
             onKeyDown={(e) => {
@@ -117,4 +118,3 @@ export function DatePickerSegment({
     </div>
   )
 }
-

@@ -3,20 +3,13 @@
 import * as React from "react"
 import { MagnifyingGlassIcon } from "@phosphor-icons/react"
 
-import { DatePickerSegment } from "@/components/dashboard/date-picker-segment"
+import { DatePickerSegment } from "@/components/filters/date-picker-segment"
+import { MultiSelectCombobox } from "@/components/filters/multi-select-combobox"
+import { MultiSelectDropdown } from "@/components/filters/multi-select-dropdown"
+import { priorityOptions } from "@/lib/filters/priority-options"
+import type { FilterOption } from "@/lib/filters/types"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
-import {
-  Combobox,
-  ComboboxChips,
-  ComboboxChip,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxPopup,
-  ComboboxValue,
-} from "@/components/ui/combobox"
 import {
   InputGroup,
   InputGroupAddon,
@@ -50,39 +43,14 @@ type ClientRow = {
   clientName: string
 }
 
-type ComboboxOption = {
-  value: string
-  label: string
-}
-
-function isUnknownArray(value: unknown): value is unknown[] {
-  return Array.isArray(value)
-}
-
-function renderMultiSelectValue({
-  value,
-  placeholder,
-  labelByValue,
-}: {
-  value: unknown
-  placeholder: string
-  labelByValue: Map<string, string>
-}) {
-  if (!isUnknownArray(value)) {
-    return <span className="text-muted-foreground/72">{placeholder}</span>
-  }
-
-  const values = value.filter(isString)
-  if (values.length === 0) {
-    return <span className="text-muted-foreground/72">{placeholder}</span>
-  }
-
-  const firstValue = values[0]
-  const firstLabel = firstValue ? labelByValue.get(firstValue) ?? firstValue : ""
-  const additional = values.length > 1 ? ` (+${values.length - 1} more)` : ""
-
-  return `${firstLabel}${additional}`
-}
+const statusOptions = [
+  { value: "any", label: "Any" },
+  { value: "open", label: "Open" },
+  { value: "in_progress", label: "In progress" },
+  { value: "blocked", label: "Blocked" },
+  { value: "resolved", label: "Resolved" },
+  { value: "closed", label: "Closed" },
+] satisfies readonly FilterOption[]
 
 function renderSingleSelectValue({
   value,
@@ -167,96 +135,32 @@ export function TicketsFilterRow({
     return map
   }, [departmentOptions])
 
-  const statusLabelByValue = React.useMemo(() => {
-    const map = new Map<string, string>()
-    map.set("open", "Open")
-    map.set("in_progress", "In progress")
-    map.set("resolved", "Resolved")
-    map.set("closed", "Closed")
-    map.set("blocked", "Blocked")
-    return map
-  }, [])
-
-  const priorityLabelByValue = React.useMemo(() => {
-    const map = new Map<string, string>()
-    map.set("low", "Low")
-    map.set("medium", "Medium")
-    map.set("high", "High")
-    map.set("urgent", "Urgent")
-    return map
-  }, [])
-
-  const ticketTypeComboboxItems = React.useMemo<ComboboxOption[]>(() => {
-    const items: ComboboxOption[] = [{ value: "any", label: "Any" }]
+  const ticketTypeItems = React.useMemo<FilterOption[]>(() => {
+    const items: FilterOption[] = [{ value: "any", label: "Any" }]
     for (const tt of ticketTypes) {
       items.push({ value: String(tt.id), label: tt.typeName })
     }
     return items
   }, [ticketTypes])
 
-  const ticketTypeItemByValue = React.useMemo(() => {
-    const map = new Map<string, ComboboxOption>()
-    for (const item of ticketTypeComboboxItems) {
-      map.set(item.value, item)
-    }
-    return map
-  }, [ticketTypeComboboxItems])
-
-  const ticketTypeSelectedItems = React.useMemo(
-    () =>
-      ticketTypeValues
-        .map((value) => ticketTypeItemByValue.get(value))
-        .filter((value): value is ComboboxOption => Boolean(value)),
-    [ticketTypeItemByValue, ticketTypeValues],
-  )
-
-  const assigneeComboboxItems = React.useMemo<ComboboxOption[]>(() => {
-    const items: ComboboxOption[] = [{ value: "any", label: "Any" }, { value: "none", label: "Unassigned" }]
+  const assigneeItems = React.useMemo<FilterOption[]>(() => {
+    const items: FilterOption[] = [
+      { value: "any", label: "Any" },
+      { value: "none", label: "Unassigned" },
+    ]
     for (const tm of teamMembers) {
       items.push({ value: String(tm.id), label: formatTeamMemberLabel(tm.username) })
     }
     return items
   }, [teamMembers])
 
-  const assigneeItemByValue = React.useMemo(() => {
-    const map = new Map<string, ComboboxOption>()
-    for (const item of assigneeComboboxItems) {
-      map.set(item.value, item)
-    }
-    return map
-  }, [assigneeComboboxItems])
-
-  const assigneeSelectedItems = React.useMemo(
-    () =>
-      assignedToValues
-        .map((value) => assigneeItemByValue.get(value))
-        .filter((value): value is ComboboxOption => Boolean(value)),
-    [assignedToValues, assigneeItemByValue],
-  )
-
-  const clientComboboxItems = React.useMemo<ComboboxOption[]>(() => {
-    const items: ComboboxOption[] = [{ value: "any", label: "Any" }]
+  const clientItems = React.useMemo<FilterOption[]>(() => {
+    const items: FilterOption[] = [{ value: "any", label: "Any" }]
     for (const client of clients) {
       items.push({ value: String(client.id), label: client.clientName })
     }
     return items
   }, [clients])
-
-  const clientItemByValue = React.useMemo(() => {
-    const map = new Map<string, ComboboxOption>()
-    for (const item of clientComboboxItems) {
-      map.set(item.value, item)
-    }
-    return map
-  }, [clientComboboxItems])
-
-  const clientSelectedItems = React.useMemo(
-    () =>
-      clientValues
-        .map((value) => clientItemByValue.get(value))
-        .filter((value): value is ComboboxOption => Boolean(value)),
-    [clientItemByValue, clientValues],
-  )
 
   return (
     <CardGroup className="rounded-none border-x-0 [&_[data-corner]]:hidden">
@@ -349,180 +253,59 @@ export function TicketsFilterRow({
           }`}
         >
           <div className="flex h-10 items-stretch">
-            <Select multiple value={statusValues} onValueChange={onStatusChange}>
-              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
-                <SelectValue>
-                  {(value: unknown) =>
-                    renderMultiSelectValue({
-                      value,
-                      placeholder: "Status…",
-                      labelByValue: statusLabelByValue,
-                    })
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="end">
-                <SelectGroup>
-                  <SelectItem value="any">Any</SelectItem>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="in_progress">In progress</SelectItem>
-                  <SelectItem value="blocked">Blocked</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <MultiSelectDropdown
+              options={statusOptions}
+              values={statusValues}
+              onValuesChange={onStatusChange}
+              placeholder="Status…"
+              ariaLabel="Filter by status"
+            />
           </div>
 
           <div className="flex h-10 items-stretch">
-            <Select multiple value={priorityValues} onValueChange={onPriorityChange}>
-              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
-                <SelectValue>
-                  {(value: unknown) =>
-                    renderMultiSelectValue({
-                      value,
-                      placeholder: "Priority…",
-                      labelByValue: priorityLabelByValue,
-                    })
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="end">
-                <SelectGroup>
-                  <SelectItem value="any">Any</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <MultiSelectDropdown
+              options={priorityOptions}
+              values={priorityValues}
+              onValuesChange={onPriorityChange}
+              placeholder="Priority…"
+              ariaLabel="Filter by priority"
+            />
           </div>
 
           <div className="flex h-10 items-stretch">
-            <Combobox
-              items={ticketTypeComboboxItems}
-              multiple
-              value={ticketTypeSelectedItems}
-              onValueChange={(next) => onTicketTypeChange(next.map((item) => item.value))}
-            >
-              <ComboboxChips
-                className="no-scrollbar h-full w-full flex-nowrap overflow-x-auto overflow-y-hidden rounded-none border-0 bg-transparent px-2 py-0 shadow-none before:hidden focus-within:border-0 focus-within:ring-0 [&_[data-slot=combobox-chip]]:max-w-full [&_[data-slot=combobox-chip]]:shrink-0"
-                data-size="lg"
-              >
-                <ComboboxValue>
-                  {(value: ComboboxOption[]) => (
-                    <>
-                      {value.map((item) => (
-                        <ComboboxChip aria-label={item.label} key={item.value}>
-                          <span className="truncate">{item.label}</span>
-                        </ComboboxChip>
-                      ))}
-                      <ComboboxInput
-                        aria-label="Filter by ticket type"
-                        placeholder={value.length > 0 ? undefined : "Ticket types…"}
-                        className="placeholder:text-muted-foreground/72"
-                      />
-                    </>
-                  )}
-                </ComboboxValue>
-              </ComboboxChips>
-              <ComboboxPopup>
-                <ComboboxEmpty>No ticket types found.</ComboboxEmpty>
-                <ComboboxList>
-                  {(item: ComboboxOption) => (
-                    <ComboboxItem key={item.value} value={item}>
-                      {item.label}
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxPopup>
-            </Combobox>
+            <MultiSelectCombobox
+              items={ticketTypeItems}
+              values={ticketTypeValues}
+              onValuesChange={onTicketTypeChange}
+              placeholder="Ticket types…"
+              ariaLabel="Filter by ticket type"
+              emptyText="No ticket types found."
+            />
           </div>
 
           {userType === "internal" ? (
             <div className="flex h-10 items-stretch">
-              <Combobox
-                items={assigneeComboboxItems}
-                multiple
-                value={assigneeSelectedItems}
-                onValueChange={(next) => onAssignedToChange(next.map((item) => item.value))}
-              >
-                <ComboboxChips
-                  className="no-scrollbar h-full w-full flex-nowrap overflow-x-auto overflow-y-hidden rounded-none border-0 bg-transparent px-2 py-0 shadow-none before:hidden focus-within:border-0 focus-within:ring-0 [&_[data-slot=combobox-chip]]:max-w-full [&_[data-slot=combobox-chip]]:shrink-0"
-                  data-size="lg"
-                >
-                  <ComboboxValue>
-                    {(value: ComboboxOption[]) => (
-                      <>
-                        {value.map((item) => (
-                          <ComboboxChip aria-label={item.label} key={item.value}>
-                            <span className="truncate">{item.label}</span>
-                          </ComboboxChip>
-                        ))}
-                        <ComboboxInput
-                          aria-label="Filter by assignee"
-                          placeholder={value.length > 0 ? undefined : "Assignees…"}
-                          className="placeholder:text-muted-foreground/72"
-                        />
-                      </>
-                    )}
-                  </ComboboxValue>
-                </ComboboxChips>
-                <ComboboxPopup>
-                  <ComboboxEmpty>No assignees found.</ComboboxEmpty>
-                  <ComboboxList>
-                    {(item: ComboboxOption) => (
-                      <ComboboxItem key={item.value} value={item}>
-                        {item.label}
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxPopup>
-              </Combobox>
+              <MultiSelectCombobox
+                items={assigneeItems}
+                values={assignedToValues}
+                onValuesChange={onAssignedToChange}
+                placeholder="Assignees…"
+                ariaLabel="Filter by assignee"
+                emptyText="No assignees found."
+              />
             </div>
           ) : null}
 
           {showClientFilter ? (
             <div className="flex h-10 items-stretch">
-              <Combobox
-                items={clientComboboxItems}
-                multiple
-                value={clientSelectedItems}
-                onValueChange={(next) => onClientChange(next.map((item) => item.value))}
-              >
-                <ComboboxChips
-                  className="no-scrollbar h-full w-full flex-nowrap overflow-x-auto overflow-y-hidden rounded-none border-0 bg-transparent px-2 py-0 shadow-none before:hidden focus-within:border-0 focus-within:ring-0 [&_[data-slot=combobox-chip]]:max-w-full [&_[data-slot=combobox-chip]]:shrink-0"
-                  data-size="lg"
-                >
-                  <ComboboxValue>
-                    {(value: ComboboxOption[]) => (
-                      <>
-                        {value.map((item) => (
-                          <ComboboxChip aria-label={item.label} key={item.value}>
-                            <span className="truncate">{item.label}</span>
-                          </ComboboxChip>
-                        ))}
-                        <ComboboxInput
-                          aria-label="Filter by client"
-                          placeholder={value.length > 0 ? undefined : "Clients…"}
-                          className="placeholder:text-muted-foreground/72"
-                        />
-                      </>
-                    )}
-                  </ComboboxValue>
-                </ComboboxChips>
-                <ComboboxPopup>
-                  <ComboboxEmpty>No clients found.</ComboboxEmpty>
-                  <ComboboxList>
-                    {(item: ComboboxOption) => (
-                      <ComboboxItem key={item.value} value={item}>
-                        {item.label}
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxPopup>
-              </Combobox>
+              <MultiSelectCombobox
+                items={clientItems}
+                values={clientValues}
+                onValuesChange={onClientChange}
+                placeholder="Clients…"
+                ariaLabel="Filter by client"
+                emptyText="No clients found."
+              />
             </div>
           ) : null}
         </div>
