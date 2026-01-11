@@ -111,7 +111,7 @@ export function DashboardFilterRow({
   }, [])
 
   return (
-    <CardGroup className="rounded-none border-x-0 [&_[data-corner]]:hidden">
+    <CardGroup className="rounded-none border-x-0 border-t-0 [&_[data-corner]]:hidden">
       <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-6 md:divide-y-0">
         <div className="flex h-10 items-stretch">
           <DatePickerSegment

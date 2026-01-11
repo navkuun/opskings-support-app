@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { usePathname } from "next/navigation"
-import { LifebuoyIcon } from "@phosphor-icons/react"
+import { LifebuoyIcon, MoonIcon, SidebarIcon, SunIcon } from "@phosphor-icons/react"
+import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -12,7 +13,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { useSidebar } from "@/components/ui/sidebar"
 import { Textarea } from "@/components/ui/textarea"
 import { toastManager } from "@/components/ui/toast"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -45,13 +46,73 @@ function getHeaderTitle(pathname: string) {
   return toTitleCase(segment)
 }
 
-export function SiteHeader({ title }: { title?: string }) {
-  const pathname = usePathname()
-  const resolvedTitle = React.useMemo(
-    () => title ?? getHeaderTitle(pathname),
-    [pathname, title]
+function HeaderIconButton({
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof Button>, "size">) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        "!h-full !w-(--header-height) !rounded-none !px-0",
+        "!border-0 bg-transparent",
+        className
+      )}
+      {...props}
+    />
   )
+}
 
+function HeaderIconButtonDivider({
+  side,
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof HeaderIconButton>, "className"> & {
+  side: "left" | "right"
+  className?: string
+}) {
+  const dividerClasses =
+    side === "left"
+      ? "!border-y-0 !border-r-0 !border-l !border-border first:!border-l-0"
+      : "!border-y-0 !border-l-0 !border-r !border-border"
+
+  return <HeaderIconButton className={cn(dividerClasses, className)} {...props} />
+}
+
+function SidebarToggleButton() {
+  const { toggleSidebar } = useSidebar()
+
+  return (
+    <HeaderIconButtonDivider
+      side="right"
+      aria-label="Toggle sidebar"
+      onClick={toggleSidebar}
+    >
+      <SidebarIcon aria-hidden="true" className="size-5" />
+    </HeaderIconButtonDivider>
+  )
+}
+
+function ThemeToggleButton() {
+  const { setTheme } = useTheme()
+
+  return (
+    <HeaderIconButtonDivider
+      side="left"
+      aria-label="Toggle theme"
+      onClick={() => {
+        const isDark = document.documentElement.classList.contains("dark")
+        setTheme(isDark ? "light" : "dark")
+      }}
+    >
+      <SunIcon className="size-5 dark:hidden" aria-hidden="true" />
+      <MoonIcon className="hidden size-5 dark:block" aria-hidden="true" />
+    </HeaderIconButtonDivider>
+  )
+}
+
+function NeedHelpPopover({ page }: { page: string }) {
   const [helpOpen, setHelpOpen] = React.useState(false)
   const [helpMessage, setHelpMessage] = React.useState("")
   const [helpError, setHelpError] = React.useState<string | null>(null)
@@ -73,7 +134,7 @@ export function SiteHeader({ title }: { title?: string }) {
         const res = await fetch("/api/help", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ message, page: pathname }),
+          body: JSON.stringify({ message, page }),
         })
 
         if (!res.ok) {
@@ -101,78 +162,82 @@ export function SiteHeader({ title }: { title?: string }) {
         setIsSending(false)
       }
     },
-    [helpMessage, pathname]
+    [helpMessage, page]
   )
 
   return (
-    <header className="bg-background flex h-(--header-height) shrink-0 items-center justify-between gap-3 border-b border-border px-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <SidebarTrigger className="-ml-1" />
-        <div className="truncate text-sm font-semibold tracking-wide">
-          {resolvedTitle}
+    <Popover open={helpOpen} onOpenChange={setHelpOpen}>
+      <PopoverTrigger
+        render={
+          <HeaderIconButtonDivider side="left" aria-label="Need help" title="Need help" />
+        }
+      >
+        <LifebuoyIcon aria-hidden="true" className="size-5" />
+      </PopoverTrigger>
+
+      <PopoverPopup align="end" className="w-[min(92vw,24rem)]">
+        <div className="space-y-1">
+          <PopoverTitle className="text-base">Need help?</PopoverTitle>
+          <PopoverDescription className="text-xs">
+            Send a message to the OpsKings Support team.
+          </PopoverDescription>
+        </div>
+
+        <form className="mt-4 grid gap-3" onSubmit={onSubmitHelp}>
+          <Field>
+            <FieldLabel htmlFor="need-help-message">Message</FieldLabel>
+            <Textarea
+              id="need-help-message"
+              value={helpMessage}
+              onChange={(e) => setHelpMessage(e.target.value)}
+              placeholder="Tell us what you’re trying to do and what went wrong."
+              rows={5}
+            />
+          </Field>
+
+          {helpError ? <div className="text-xs text-destructive">{helpError}</div> : null}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setHelpOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={isSending}>
+              {isSending ? "Sending…" : "Send"}
+            </Button>
+          </div>
+        </form>
+      </PopoverPopup>
+    </Popover>
+  )
+}
+
+export function SiteHeader({ title }: { title?: string }) {
+  const pathname = usePathname()
+  const resolvedTitle = React.useMemo(
+    () => title ?? getHeaderTitle(pathname),
+    [pathname, title]
+  )
+
+  return (
+    <header className="bg-background flex h-(--header-height) shrink-0 items-stretch justify-between border-b border-border pl-0 pr-0">
+      <div className="flex min-w-0 items-stretch">
+        <SidebarToggleButton />
+        <div className="flex min-w-0 items-center px-4">
+          <div className="truncate text-sm font-semibold tracking-wide">
+            {resolvedTitle}
+          </div>
         </div>
       </div>
 
-      <Popover open={helpOpen} onOpenChange={setHelpOpen}>
-        <PopoverTrigger
-          render={
-            <button
-              type="button"
-              className={cn(
-                "relative inline-flex h-8 shrink-0 items-center justify-center bg-transparent pl-3 pr-8 text-xs font-bold  tracking-tight text-white outline-none",
-                "focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-destructive/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                "hover:[&_[data-tab-shape]]:fill-destructive/90"
-              )}
-            />
-          }
-        >
-        
-          <span className="relative flex items-center gap-2">
-            <LifebuoyIcon aria-hidden="true" className="size-3.5" />
-            Need help?
-          </span>
-        </PopoverTrigger>
-
-        <PopoverPopup align="end" className="w-[min(92vw,24rem)]">
-          <div className="space-y-1">
-            <PopoverTitle className="text-base">Need help?</PopoverTitle>
-            <PopoverDescription className="text-xs">
-              Send a message to the OpsKings Support team.
-            </PopoverDescription>
-          </div>
-
-          <form className="mt-4 grid gap-3" onSubmit={onSubmitHelp}>
-            <Field>
-              <FieldLabel htmlFor="need-help-message">Message</FieldLabel>
-              <Textarea
-                id="need-help-message"
-                value={helpMessage}
-                onChange={(e) => setHelpMessage(e.target.value)}
-                placeholder="Tell us what you’re trying to do and what went wrong."
-                rows={5}
-              />
-            </Field>
-
-            {helpError ? (
-              <div className="text-xs text-destructive">{helpError}</div>
-            ) : null}
-
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setHelpOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={isSending}>
-                {isSending ? "Sending…" : "Send"}
-              </Button>
-            </div>
-          </form>
-        </PopoverPopup>
-      </Popover>
+      <div className="flex h-full items-stretch border-l border-border">
+        <ThemeToggleButton />
+        <NeedHelpPopover page={pathname} />
+      </div>
     </header>
   )
 }

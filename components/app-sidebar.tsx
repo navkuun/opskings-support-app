@@ -72,7 +72,7 @@ function CrownSidebarMenuLink({
         "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-l-0",
         "h-8 justify-start gap-2 rounded-none border-l-[0.2rem] border-transparent bg-transparent py-1.5 pl-[14px] pr-4 text-xs font-normal text-sidebar-foreground/60",
         "hover:bg-sidebar-accent/20 hover:text-sidebar-foreground",
-        "data-active:border-primary data-active:bg-zinc-800 data-active:text-sidebar-foreground data-active:font-semibold"
+        "data-active:border-primary data-active:bg-zinc-200 dark:data-active:bg-zinc-800 data-active:text-sidebar-foreground data-active:font-semibold"
       )}
     >
       <Icon
@@ -98,7 +98,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
       className={cn("border-sidebar-border/60", className)}
       {...props}
     >
-      <SidebarHeader className="border-sidebar-border/60 border-b px-4 py-6 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-4">
+      <SidebarHeader className="border-sidebar-border/60 border-b px-4 pt-4 pb-5 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-4">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
