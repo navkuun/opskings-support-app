@@ -119,29 +119,16 @@ export function SiteHeader({ title }: { title?: string }) {
             <button
               type="button"
               className={cn(
-                "relative inline-flex h-8 shrink-0 items-center justify-center bg-transparent uppercase pl-3 pr-8 text-xs font-bold  tracking-tight text-white outline-none",
+                "relative inline-flex h-8 shrink-0 items-center justify-center bg-transparent pl-3 pr-8 text-xs font-bold  tracking-tight text-white outline-none",
                 "focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-destructive/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 "hover:[&_[data-tab-shape]]:fill-destructive/90"
               )}
             />
           }
         >
-          <svg
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 h-full w-full"
-            viewBox="0 0 100 32"
-            preserveAspectRatio="none"
-          >
-            <polygon
-              data-tab-shape
-              vectorEffect="non-scaling-stroke"
-              points="0,0 88,0 100,32 0,32"
-              className="fill-destructive stroke-destructive/70 transition-colors"
-              strokeWidth="1"
-            />
-          </svg>
-          <span className="relative inline-flex items-center gap-2">
-            <LifebuoyIcon aria-hidden="true" className="size-4" />
+        
+          <span className="relative flex items-center gap-2">
+            <LifebuoyIcon aria-hidden="true" className="size-3.5" />
             Need help?
           </span>
         </PopoverTrigger>
