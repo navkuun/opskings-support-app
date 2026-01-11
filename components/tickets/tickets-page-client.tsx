@@ -7,10 +7,23 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { TicketsFilterRow } from "@/components/tickets/tickets-filter-row"
 import { TicketsTable, type ClientTicketRow } from "@/components/tickets/tickets-table"
 import { parseDateToUtcMs } from "@/lib/dashboard/utils"
+import { fuzzySearch } from "@/lib/search/fuzzy-search"
 import { isRecord, isString } from "@/lib/type-guards"
 import { queries } from "@/zero/queries"
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = 20
+const SEARCH_LIMIT = 200
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debouncedValue, setDebouncedValue] = React.useState(value)
+
+  React.useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedValue(value), delayMs)
+    return () => window.clearTimeout(handle)
+  }, [delayMs, value])
+
+  return debouncedValue
+}
 
 function updateSearchParams(
   router: ReturnType<typeof useRouter>,
@@ -88,7 +101,14 @@ export function TicketsPageClient({
   const priorityParam = searchParams.get("priority")
   const ticketTypeParam = searchParams.get("ticketTypeId")
   const assignedToParam = searchParams.get("assignedTo")
-  const search = searchParams.get("q") ?? ""
+  const searchParam = searchParams.get("q") ?? ""
+
+  const [searchInput, setSearchInput] = React.useState(searchParam)
+  const debouncedSearchInput = useDebouncedValue(searchInput, 250)
+
+  React.useEffect(() => {
+    setSearchInput(searchParam)
+  }, [searchParam])
 
   const statusValues = React.useMemo(() => parseMultiParam(statusParam), [statusParam])
   const priorityValues = React.useMemo(() => parseMultiParam(priorityParam), [priorityParam])
@@ -143,6 +163,17 @@ export function TicketsPageClient({
 
   const ticketTypeIds = React.useMemo(() => parseNumberTokens(ticketTypeValues), [ticketTypeValues])
 
+  const trimmedSearch = searchInput.trim()
+  const isSearchMode = trimmedSearch.length > 0
+
+  React.useEffect(() => {
+    const trimmed = debouncedSearchInput.trim()
+    const next = trimmed ? trimmed : null
+    const current = searchParams.get("q") ?? ""
+    if (current === (next ?? "")) return
+    updateSearchParams(router, searchParams, { q: next })
+  }, [debouncedSearchInput, router, searchParams])
+
   const cursorKey = React.useMemo(() => {
     return [
       userType,
@@ -154,7 +185,7 @@ export function TicketsPageClient({
       ticketTypeIds.join("|"),
       assignedToIds.join("|"),
       includeUnassigned ? "1" : "0",
-      search.trim(),
+      trimmedSearch,
     ].join("::")
   }, [
     assignedToIds,
@@ -162,9 +193,9 @@ export function TicketsPageClient({
     from,
     includeUnassigned,
     priorityValues,
-    search,
     statusValues,
     ticketTypeIds,
+    trimmedSearch,
     to,
     userType,
   ])
@@ -177,16 +208,15 @@ export function TicketsPageClient({
     setPageCursors([null])
   }, [cursorKey])
 
-  const cursor = pageCursors[pageIndex] ?? null
+  const cursor = isSearchMode ? null : (pageCursors[pageIndex] ?? null)
 
   const queryArgs = React.useMemo(() => {
     const statuses = statusValues.filter((value) => value !== "any")
     const priorities = priorityValues.filter((value) => value !== "any")
-    const searchValue = search.trim()
     const deptValue = userType === "internal" && department !== "all" ? department : undefined
 
     return {
-      limit: PAGE_SIZE + 1,
+      limit: isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
       cursor: cursor ?? undefined,
       from: createdFrom,
       to: createdTo,
@@ -196,7 +226,6 @@ export function TicketsPageClient({
       ticketTypeId: ticketTypeIds.length ? ticketTypeIds : undefined,
       assignedTo: assignedToIds.length ? assignedToIds : undefined,
       includeUnassigned: includeUnassigned || undefined,
-      search: searchValue ? searchValue : undefined,
     }
   }, [
     assignedToIds,
@@ -205,22 +234,45 @@ export function TicketsPageClient({
     cursor,
     department,
     includeUnassigned,
+    isSearchMode,
     priorityValues,
-    search,
     statusValues,
     ticketTypeIds,
     userType,
   ])
 
   const [tickets] = useQuery(queries.tickets.list(queryArgs))
-  const hasNextPage = tickets.length > PAGE_SIZE
-  const pageTickets = tickets.slice(0, PAGE_SIZE)
+  const hasNextPage = !isSearchMode && tickets.length > PAGE_SIZE
+  const pageTickets = React.useMemo(() => tickets.slice(0, PAGE_SIZE), [tickets])
 
   const showClient = userType === "internal"
 
+  const visibleTickets = React.useMemo(() => {
+    if (!isSearchMode) return pageTickets
+
+    return fuzzySearch(trimmedSearch, tickets, (ticket) => {
+      const parts: string[] = [`#${ticket.id}`, ticket.title]
+
+      if (isRecord(ticket.ticketType) && isString(ticket.ticketType.typeName)) {
+        parts.push(ticket.ticketType.typeName)
+      }
+
+      if (
+        showClient &&
+        "client" in ticket &&
+        isRecord(ticket.client) &&
+        isString(ticket.client.clientName)
+      ) {
+        parts.push(ticket.client.clientName)
+      }
+
+      return parts.join(" ")
+    })
+  }, [isSearchMode, pageTickets, showClient, tickets, trimmedSearch])
+
   const tableTickets = React.useMemo<ClientTicketRow[]>(
     () =>
-      pageTickets.map((ticket) => {
+      visibleTickets.map((ticket) => {
         const ticketTypeLabel = ticket.ticketType?.typeName ?? `Type ${ticket.ticketTypeId}`
         const createdAtIso =
           typeof ticket.createdAt === "number" ? new Date(ticket.createdAt).toISOString() : null
@@ -242,7 +294,7 @@ export function TicketsPageClient({
           createdAt: createdAtIso,
         }
       }),
-    [pageTickets, showClient],
+    [showClient, visibleTickets],
   )
 
   const handleFromChange = React.useCallback(
@@ -256,8 +308,8 @@ export function TicketsPageClient({
   )
 
   const handleSearchChange = React.useCallback(
-    (next: string) => updateSearchParams(router, searchParams, { q: next.trim() ? next : null }),
-    [router, searchParams],
+    (next: string) => setSearchInput(next),
+    [],
   )
 
   const handleDepartmentChange = React.useCallback(
@@ -337,6 +389,7 @@ export function TicketsPageClient({
   )
 
   const handleReset = React.useCallback(() => {
+    setSearchInput("")
     updateSearchParams(router, searchParams, {
       from: null,
       to: null,
@@ -350,6 +403,7 @@ export function TicketsPageClient({
   }, [router, searchParams])
 
   const handleNextPage = React.useCallback(() => {
+    if (isSearchMode) return
     if (!hasNextPage) return
     const last = pageTickets[pageTickets.length - 1]
     if (!last) return
@@ -362,11 +416,12 @@ export function TicketsPageClient({
       return base
     })
     setPageIndex((prev) => prev + 1)
-  }, [hasNextPage, pageIndex, pageTickets])
+  }, [hasNextPage, isSearchMode, pageIndex, pageTickets])
 
   const handlePreviousPage = React.useCallback(() => {
+    if (isSearchMode) return
     setPageIndex((prev) => (prev <= 0 ? 0 : prev - 1))
-  }, [])
+  }, [isSearchMode])
 
   const isLoading =
     ticketTypesResult.type !== "complete" ||
@@ -378,7 +433,7 @@ export function TicketsPageClient({
         userType={userType}
         from={from}
         to={to}
-        search={search}
+        search={searchInput}
         department={department}
         departmentOptions={departmentOptions}
         statusValues={statusValues}
@@ -402,14 +457,19 @@ export function TicketsPageClient({
         <TicketsTable
           tickets={tableTickets}
           showClient={showClient}
-          pagination={{
-            mode: "cursor",
-            pageIndex,
-            pageSize: PAGE_SIZE,
-            hasNextPage,
-            onNextPage: handleNextPage,
-            onPreviousPage: handlePreviousPage,
-          }}
+          defaultSort={isSearchMode ? "none" : "createdAtDesc"}
+          pagination={
+            isSearchMode
+              ? undefined
+              : {
+                  mode: "cursor",
+                  pageIndex,
+                  pageSize: PAGE_SIZE,
+                  hasNextPage,
+                  onNextPage: handleNextPage,
+                  onPreviousPage: handlePreviousPage,
+                }
+          }
           isLoading={isLoading}
         />
       </div>

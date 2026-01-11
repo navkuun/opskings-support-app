@@ -62,6 +62,8 @@ type CursorPagination = {
   onPreviousPage: () => void
 }
 
+const DEFAULT_PAGE_SIZE = 20
+
 function formatLabel(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return value
@@ -211,16 +213,25 @@ export function TicketsTable({
   showClient = false,
   pagination,
   isLoading = false,
+  defaultSort = "createdAtDesc",
 }: {
   tickets: ClientTicketRow[]
   showClient?: boolean
   pagination?: CursorPagination
   isLoading?: boolean
+  defaultSort?: "createdAtDesc" | "none"
 }) {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "createdAt", desc: true }])
+  const [sorting, setSorting] = React.useState<SortingState>(() =>
+    defaultSort === "none" ? [] : [{ id: "createdAt", desc: true }],
+  )
 
-  const pageSize = pagination?.mode === "cursor" ? pagination.pageSize : 30
+  React.useEffect(() => {
+    setSorting(defaultSort === "none" ? [] : [{ id: "createdAt", desc: true }])
+  }, [defaultSort])
+
+  const pageSize =
+    pagination?.mode === "cursor" ? pagination.pageSize : DEFAULT_PAGE_SIZE
   const enableClientPaging = pagination?.mode !== "cursor"
 
   const [clientPagination, setClientPagination] = React.useState<PaginationState>({

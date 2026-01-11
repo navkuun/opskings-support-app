@@ -94,7 +94,7 @@ export const queries = defineQueries({
   tickets: {
     list: defineQuery(
       z.object({
-        limit: z.number().int().positive().max(200).default(30),
+        limit: z.number().int().positive().max(200).default(20),
         cursor: z
           .object({
             id: z.number().int().positive(),
