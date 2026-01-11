@@ -15,6 +15,11 @@ type ZeroTransformOk = [
   >,
 ]
 
+type ZeroAst = {
+  table: string
+  where?: unknown
+}
+
 function uniqueEmail(prefix: string) {
   const rand = Math.random().toString(16).slice(2)
   return `${prefix}-${Date.now()}-${rand}@example.com`
@@ -22,6 +27,12 @@ function uniqueEmail(prefix: string) {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
+}
+
+function assertZeroAst(value: unknown): asserts value is ZeroAst {
+  if (!isObject(value) || typeof value.table !== "string") {
+    throw new Error("Expected Zero AST")
+  }
 }
 
 function hasSimpleColumnEquals(where: unknown, column: string, value: number): boolean {
@@ -53,7 +64,12 @@ function hasSimpleColumnEquals(where: unknown, column: string, value: number): b
   return false
 }
 
-function hasCorrelatedSubquery(where: unknown, table: string, column: string, value: number) {
+function hasCorrelatedSubquery(
+  where: unknown,
+  table: string,
+  column: string,
+  value: number,
+): boolean {
   if (!isObject(where)) return false
   const type = where.type
   if (type === "correlatedSubquery") {
@@ -144,7 +160,7 @@ async function fetchQueryAst(
   page: import("@playwright/test").Page,
   name: string,
   args: Record<string, unknown>,
-) {
+): Promise<ZeroAst> {
   const res = await page.request.post("/api/zero/query", {
     data: [
       "transform",
@@ -160,8 +176,9 @@ async function fetchQueryAst(
   expect(res.ok()).toBeTruthy()
 
   const json = (await res.json()) as unknown
-  expect(Array.isArray(json)).toBeTruthy()
-  expect(json[0]).toBe("transformed")
+  if (!Array.isArray(json) || json[0] !== "transformed") {
+    throw new Error("Unexpected Zero transform response")
+  }
 
   const ok = json as ZeroTransformOk
   const first = ok[1][0]
@@ -176,12 +193,13 @@ async function fetchQueryAst(
     throw new Error("Missing AST in transform response")
   }
 
-  return first.ast
+  const ast = first.ast
+  assertZeroAst(ast)
+  return ast
 }
 
 test("zero queries: anonymous users get empty queries", async ({ page }) => {
   const ast = await fetchQueryAst(page, "tickets.recent", { limit: 1 })
-  expect(isObject(ast)).toBeTruthy()
   expect(ast.table).toBe("tickets")
   expect(hasSimpleColumnEquals(ast.where, "id", -1)).toBe(true)
 })
@@ -194,19 +212,16 @@ test("zero queries: client users are restricted to their clientId", async ({ pag
   await signIn(page, email, password)
 
   const ticketsAst = await fetchQueryAst(page, "tickets.recent", { limit: 1 })
-  expect(isObject(ticketsAst)).toBeTruthy()
   expect(ticketsAst.table).toBe("tickets")
   expect(hasSimpleColumnEquals(ticketsAst.where, "client_id", clientId)).toBe(true)
 
   const clientsOwnAst = await fetchQueryAst(page, "clients.byId", { id: clientId })
-  expect(isObject(clientsOwnAst)).toBeTruthy()
   expect(clientsOwnAst.table).toBe("clients")
   expect(hasSimpleColumnEquals(clientsOwnAst.where, "id", clientId)).toBe(true)
 
   const clientsOtherAst = await fetchQueryAst(page, "clients.byId", {
     id: clientId + 1,
   })
-  expect(isObject(clientsOtherAst)).toBeTruthy()
   expect(clientsOtherAst.table).toBe("clients")
   expect(hasSimpleColumnEquals(clientsOtherAst.where, "id", -1)).toBe(true)
 })
@@ -224,7 +239,6 @@ test("zero queries: client users can only access ticket messages for their ticke
     ticketId: 123,
     limit: 50,
   })
-  expect(isObject(ast)).toBeTruthy()
   expect(ast.table).toBe("ticket_messages")
   expect(hasSimpleColumnEquals(ast.where, "ticket_id", 123)).toBe(true)
   expect(hasCorrelatedSubquery(ast.where, "tickets", "client_id", clientId)).toBe(true)
@@ -242,7 +256,6 @@ test("zero queries: client users can only access ticket feedback for their ticke
   const ast = await fetchQueryAst(page, "ticketFeedback.byTicket", {
     ticketId: 456,
   })
-  expect(isObject(ast)).toBeTruthy()
   expect(ast.table).toBe("ticket_feedback")
   expect(hasSimpleColumnEquals(ast.where, "ticket_id", 456)).toBe(true)
   expect(hasCorrelatedSubquery(ast.where, "tickets", "client_id", clientId)).toBe(true)
@@ -256,7 +269,6 @@ test("zero queries: internal users can list all clients", async ({ page }) => {
   await signIn(page, email, password)
 
   const ast = await fetchQueryAst(page, "clients.list", { limit: 10 })
-  expect(isObject(ast)).toBeTruthy()
   expect(ast.table).toBe("clients")
   expect(ast.where).toBeUndefined()
 })

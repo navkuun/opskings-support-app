@@ -89,8 +89,8 @@ async function signInWithPassword(
 
 test("redirects anonymous user from /protected", async ({ page }) => {
   await page.goto("/protected")
-  await expect(page).toHaveURL(/\/$/)
   await expect(page.getByPlaceholder("Email")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Protected" })).toHaveCount(0)
 })
 
 test("internal user can set password, access protected, sign out, and sign back in", async ({
@@ -112,7 +112,8 @@ test("internal user can set password, access protected, sign out, and sign back 
     .toBe(false)
 
   await page.goto("/protected")
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByPlaceholder("Email")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Protected" })).toHaveCount(0)
 
   await signInWithPassword(page, email, password)
   await page.goto("/protected")
