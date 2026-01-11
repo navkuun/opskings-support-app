@@ -84,6 +84,7 @@ export function TicketsFilterRow({
   ticketTypes,
   teamMembers,
   clients,
+  searchInputRef,
   onFromChange,
   onToChange,
   onSearchChange,
@@ -110,6 +111,7 @@ export function TicketsFilterRow({
   ticketTypes: readonly TicketTypeRow[]
   teamMembers: readonly TeamMemberRow[]
   clients: readonly ClientRow[]
+  searchInputRef?: React.RefObject<HTMLInputElement | null>
   onFromChange: (next: string) => void
   onToChange: (next: string) => void
   onSearchChange: (next: string) => void
@@ -186,6 +188,7 @@ export function TicketsFilterRow({
                 value={search}
                 placeholder="Search title or #ID…"
                 onChange={(e) => onSearchChange(e.target.value)}
+                ref={searchInputRef}
               />
             </InputGroup>
           </div>

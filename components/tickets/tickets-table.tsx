@@ -214,13 +214,34 @@ export function TicketsTable({
   pagination,
   isLoading = false,
   defaultSort = "createdAtDesc",
+  activeTicketId,
+  onActiveTicketIdChange,
+  onOpenTicket,
 }: {
   tickets: ClientTicketRow[]
   showClient?: boolean
   pagination?: CursorPagination
   isLoading?: boolean
   defaultSort?: "createdAtDesc" | "none"
+  activeTicketId?: number | null
+  onActiveTicketIdChange?: (ticketId: number | null) => void
+  onOpenTicket?: (ticketId: number) => void
 }) {
+  const [internalActiveTicketId, setInternalActiveTicketId] = React.useState<number | null>(null)
+  const resolvedActiveTicketId =
+    typeof activeTicketId === "number" ? activeTicketId : internalActiveTicketId
+
+  const setActiveTicketId = React.useCallback(
+    (ticketId: number | null) => {
+      if (onActiveTicketIdChange) {
+        onActiveTicketIdChange(ticketId)
+        return
+      }
+      setInternalActiveTicketId(ticketId)
+    },
+    [onActiveTicketIdChange],
+  )
+
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [sorting, setSorting] = React.useState<SortingState>(() =>
     defaultSort === "none" ? [] : [{ id: "createdAt", desc: true }],
@@ -298,6 +319,78 @@ export function TicketsTable({
     })
   }, [enableClientPaging, pageCount, pageSize, total])
 
+  const visibleTicketIdsKey = table
+    .getRowModel()
+    .rows.map((row) => row.original.id)
+    .join("|")
+
+  React.useEffect(() => {
+    const visibleTicketIds = table.getRowModel().rows.map((row) => row.original.id)
+    if (visibleTicketIds.length === 0) {
+      setActiveTicketId(null)
+      return
+    }
+
+    if (
+      typeof resolvedActiveTicketId === "number" &&
+      visibleTicketIds.includes(resolvedActiveTicketId)
+    ) {
+      return
+    }
+
+    setActiveTicketId(visibleTicketIds[0] ?? null)
+  }, [resolvedActiveTicketId, setActiveTicketId, table, visibleTicketIdsKey])
+
+  React.useEffect(() => {
+    if (!onOpenTicket) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable]")) {
+        return
+      }
+
+      const key = event.key.toLowerCase()
+
+      if (key === "enter") {
+        if (typeof resolvedActiveTicketId !== "number") return
+        event.preventDefault()
+        onOpenTicket(resolvedActiveTicketId)
+        return
+      }
+
+      if (key !== "j" && key !== "k") return
+      const visibleTicketIds = table.getRowModel().rows.map((row) => row.original.id)
+      if (visibleTicketIds.length === 0) return
+
+      event.preventDefault()
+
+      const currentIndex =
+        typeof resolvedActiveTicketId === "number"
+          ? visibleTicketIds.indexOf(resolvedActiveTicketId)
+          : -1
+      const baseIndex = currentIndex >= 0 ? currentIndex : 0
+
+      const nextIndex =
+        key === "j"
+          ? Math.min(visibleTicketIds.length - 1, baseIndex + 1)
+          : Math.max(0, baseIndex - 1)
+
+      const nextId = visibleTicketIds[nextIndex]
+      if (typeof nextId !== "number") return
+      setActiveTicketId(nextId)
+
+      const row = document.querySelector(`[data-ticket-row-id="${nextId}"]`)
+      if (row instanceof HTMLElement) {
+        row.scrollIntoView({ block: "nearest" })
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [onOpenTicket, resolvedActiveTicketId, setActiveTicketId, table, visibleTicketIdsKey])
+
   return (
     <Frame className="w-full">
       <Table className="table-fixed">
@@ -358,15 +451,36 @@ export function TicketsTable({
               </TableCell>
             </TableRow>
           ) : table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow data-state={row.getIsSelected() ? "selected" : undefined} key={row.id}>
+            table.getRowModel().rows.map((row) => {
+              const ticketId = row.original.id
+              const isActive =
+                typeof resolvedActiveTicketId === "number" && resolvedActiveTicketId === ticketId
+
+              return (
+              <TableRow
+                data-state={row.getIsSelected() || isActive ? "selected" : undefined}
+                data-ticket-row-id={ticketId}
+                key={row.id}
+                className={cn(onOpenTicket ? "cursor-pointer" : "")}
+                onClick={(event) => {
+                  if (!onOpenTicket) return
+                  const target = event.target
+                  if (!(target instanceof Element)) return
+                  if (target.closest("[role=checkbox], [data-slot=checkbox]")) return
+
+                  event.preventDefault()
+                  setActiveTicketId(ticketId)
+                  onOpenTicket(ticketId)
+                }}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
               </TableRow>
-            ))
+              )
+            })
           ) : (
             <TableRow>
               <TableCell className="h-24 text-center" colSpan={tableColumns.length}>

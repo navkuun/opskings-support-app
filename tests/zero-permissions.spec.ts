@@ -265,6 +265,15 @@ test("zero queries: client users are restricted to their clientId", async ({ pag
   await setupPassword(page, email, password)
   await signIn(page, email, password)
 
+  const listAst = await fetchQueryAst(page, "tickets.list", { limit: 1 })
+  expect(listAst.table).toBe("tickets")
+  expect(hasSimpleColumnEquals(listAst.where, "client_id", clientId)).toBe(true)
+
+  const byIdAst = await fetchQueryAst(page, "tickets.byId", { id: 123 })
+  expect(byIdAst.table).toBe("tickets")
+  expect(hasSimpleColumnEquals(byIdAst.where, "id", 123)).toBe(true)
+  expect(hasSimpleColumnEquals(byIdAst.where, "client_id", clientId)).toBe(true)
+
   const ticketsAst = await fetchQueryAst(page, "tickets.recent", { limit: 1 })
   expect(ticketsAst.table).toBe("tickets")
   expect(hasSimpleColumnEquals(ticketsAst.where, "client_id", clientId)).toBe(true)

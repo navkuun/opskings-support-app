@@ -14,6 +14,17 @@ function assertInternal(ctx: ZeroContext | undefined) {
   }
 }
 
+function requireTeamMemberId(ctx: ZeroContext | undefined) {
+  if (ctx?.userType !== "internal") {
+    throw new Error("Access denied")
+  }
+  const teamMemberId = ctx.teamMemberId
+  if (typeof teamMemberId !== "number" || !Number.isFinite(teamMemberId)) {
+    throw new Error("Access denied")
+  }
+  return teamMemberId
+}
+
 function requireClientId(ctx: ZeroContext | undefined) {
   if (ctx?.userType !== "client") {
     throw new Error("Access denied")
@@ -62,28 +73,31 @@ export const mutators = defineMutators({
         ticketTypeId: z.number().int().positive(),
         assignedTo: z.number().int().positive().nullable().optional(),
         status: z.string().min(1).max(50).optional(),
-        priority: z.string().min(1).max(20).nullable().optional(),
+        priority: z.enum(["low", "medium", "high", "urgent"]).nullable().optional(),
         title: z.string().min(1).max(255),
         createdAt: z.number().int().optional(),
       }),
       async ({ args, tx, ctx }) => {
-        if (isServer(tx)) {
-          if (ctx?.userType === "internal") {
-            // allow
-          } else {
-            const clientId = requireClientId(ctx)
-            if (args.clientId !== clientId) {
-              throw new Error("Access denied")
-            }
-          }
+        const isClient = ctx?.userType === "client"
+        const clientId = isClient ? requireClientId(ctx) : args.clientId
+
+        if (isClient && args.clientId !== clientId) {
+          throw new Error("Access denied")
         }
+
+        if (isServer(tx) && ctx?.userType !== "internal" && !isClient) {
+          throw new Error("Access denied")
+        }
+
+        const assignedTo = isClient ? null : (args.assignedTo ?? null)
+        const status = isClient ? "open" : (args.status ?? "open")
 
         await tx.mutate.tickets.insert({
           id: args.id,
-          clientId: args.clientId,
+          clientId,
           ticketTypeId: args.ticketTypeId,
-          assignedTo: args.assignedTo ?? null,
-          status: args.status ?? "open",
+          assignedTo,
+          status,
           priority: args.priority ?? null,
           title: args.title,
           createdAt: args.createdAt ?? Date.now(),
@@ -100,15 +114,41 @@ export const mutators = defineMutators({
         closedAt: z.number().int().nullable().optional(),
       }),
       async ({ args, tx, ctx }) => {
-        if (isServer(tx)) {
-          assertInternal(ctx)
-        }
+        assertInternal(ctx)
 
         await tx.mutate.tickets.update({
           id: args.id,
           status: args.status,
           resolvedAt: args.resolvedAt ?? null,
           closedAt: args.closedAt ?? null,
+        })
+      },
+    ),
+    setPriority: defineMutator(
+      z.object({
+        id: z.number().int().positive(),
+        priority: z.enum(["low", "medium", "high", "urgent"]).nullable(),
+      }),
+      async ({ args, tx, ctx }) => {
+        assertInternal(ctx)
+
+        await tx.mutate.tickets.update({
+          id: args.id,
+          priority: args.priority,
+        })
+      },
+    ),
+    setAssignedTo: defineMutator(
+      z.object({
+        id: z.number().int().positive(),
+        assignedTo: z.number().int().positive().nullable(),
+      }),
+      async ({ args, tx, ctx }) => {
+        assertInternal(ctx)
+
+        await tx.mutate.tickets.update({
+          id: args.id,
+          assignedTo: args.assignedTo,
         })
       },
     ),
@@ -124,32 +164,29 @@ export const mutators = defineMutators({
         createdAt: z.number().int().optional(),
       }),
       async ({ args, tx, ctx }) => {
-        if (isServer(tx)) {
-          if (ctx?.userType === "internal") {
-            if (args.fromClient) {
-              throw new Error("Access denied")
-            }
-          } else {
-            const clientId = requireClientId(ctx)
-            if (!args.fromClient) {
-              throw new Error("Access denied")
-            }
-            if (args.fromTeamMemberId != null) {
-              throw new Error("Access denied")
-            }
+        const isInternalUser = ctx?.userType === "internal"
+        const isClientUser = ctx?.userType === "client"
 
-            const ticket = await tx.run(zql.tickets.where("id", args.ticketId).one())
-            if (!ticket || ticket.clientId !== clientId) {
-              throw new Error("Access denied")
-            }
+        if (!isInternalUser && !isClientUser) {
+          throw new Error("Access denied")
+        }
+
+        const fromClient = isClientUser
+        const fromTeamMemberId = isInternalUser ? requireTeamMemberId(ctx) : null
+
+        if (isServer(tx) && isClientUser) {
+          const clientId = requireClientId(ctx)
+          const ticket = await tx.run(zql.tickets.where("id", args.ticketId).one())
+          if (!ticket || ticket.clientId !== clientId) {
+            throw new Error("Access denied")
           }
         }
 
         await tx.mutate.ticketMessages.insert({
           id: args.id,
           ticketId: args.ticketId,
-          fromClient: args.fromClient ?? false,
-          fromTeamMemberId: args.fromTeamMemberId ?? null,
+          fromClient,
+          fromTeamMemberId,
           messageText: args.messageText,
           createdAt: args.createdAt ?? Date.now(),
         })
@@ -166,18 +203,21 @@ export const mutators = defineMutators({
         createdAt: z.number().int().optional(),
       }),
       async ({ args, tx, ctx }) => {
-        if (isServer(tx)) {
-          if (ctx?.userType === "internal") {
-            // allow
-          } else {
-            const clientId = requireClientId(ctx)
-            const ticket = await tx.run(zql.tickets.where("id", args.ticketId).one())
-            if (!ticket || ticket.clientId !== clientId) {
-              throw new Error("Access denied")
-            }
-            if (ticket.status !== "resolved") {
-              throw new Error("Access denied")
-            }
+        const isInternalUser = ctx?.userType === "internal"
+        const isClientUser = ctx?.userType === "client"
+
+        if (!isInternalUser && !isClientUser) {
+          throw new Error("Access denied")
+        }
+
+        if (isServer(tx) && isClientUser) {
+          const clientId = requireClientId(ctx)
+          const ticket = await tx.run(zql.tickets.where("id", args.ticketId).one())
+          if (!ticket || ticket.clientId !== clientId) {
+            throw new Error("Access denied")
+          }
+          if (ticket.status !== "resolved") {
+            throw new Error("Access denied")
           }
         }
 

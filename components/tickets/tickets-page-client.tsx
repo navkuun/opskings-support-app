@@ -4,9 +4,12 @@ import * as React from "react"
 import { useQuery } from "@rocicorp/zero/react"
 import { useRouter, useSearchParams } from "next/navigation"
 
+import { CreateTicketDialog } from "@/components/tickets/create-ticket-dialog"
 import { TicketsFilterRow } from "@/components/tickets/tickets-filter-row"
 import { TicketsTable, type ClientTicketRow } from "@/components/tickets/tickets-table"
+import { Button } from "@/components/ui/button"
 import { parseDateToUtcMs } from "@/lib/dashboard/utils"
+import { isEditableTarget } from "@/lib/keyboard"
 import { fuzzySearch } from "@/lib/search/fuzzy-search"
 import { isRecord, isString } from "@/lib/type-guards"
 import { queries } from "@/zero/queries"
@@ -88,16 +91,24 @@ export function TicketsPageClient({
   userType,
   internalRole,
   teamMemberId,
+  clientId,
 }: {
   userType: "internal" | "client"
   internalRole: "support_agent" | "manager" | "admin" | null
   teamMemberId: number | null
+  clientId: number | null
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const searchInputRef = React.useRef<HTMLInputElement | null>(null)
+  const [createOpen, setCreateOpen] = React.useState(false)
 
   const canFilterClients =
     userType === "internal" && (internalRole === "manager" || internalRole === "admin")
+  const canCreateTickets =
+    userType === "client"
+      ? typeof clientId === "number" && clientId > 0
+      : typeof teamMemberId === "number" && teamMemberId > 0
 
   const from = searchParams.get("from") ?? ""
   const to = searchParams.get("to") ?? ""
@@ -436,6 +447,49 @@ export function TicketsPageClient({
     })
   }, [router, searchParams])
 
+  React.useEffect(() => {
+    const patch: Record<string, string | null> = {}
+
+    if (searchParams.get("focus") === "search") {
+      searchInputRef.current?.focus()
+      patch.focus = null
+    }
+
+    if (searchParams.get("new") === "1" && canCreateTickets) {
+      setCreateOpen(true)
+      patch.new = null
+    }
+
+    if (Object.keys(patch).length > 0) {
+      updateSearchParams(router, searchParams, patch)
+    }
+  }, [canCreateTickets, router, searchParams])
+
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+
+      const key = event.key.toLowerCase()
+
+      if (key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (isEditableTarget(event.target)) return
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+
+      if (key === "c" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (isEditableTarget(event.target)) return
+        if (!canCreateTickets) return
+        event.preventDefault()
+        setCreateOpen(true)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [canCreateTickets])
+
   const handleNextPage = React.useCallback(() => {
     if (isSearchMode) return
     if (!hasNextPage) return
@@ -459,8 +513,8 @@ export function TicketsPageClient({
 
   const isLoading =
     ticketTypesResult.type !== "complete" ||
-    (userType === "internal" && teamMembersResult.type !== "complete") ||
-    (canFilterClients && clientsResult.type !== "complete")
+    (userType === "internal" &&
+      (teamMembersResult.type !== "complete" || clientsResult.type !== "complete"))
 
   return (
     <div className="w-full pb-8">
@@ -480,6 +534,7 @@ export function TicketsPageClient({
         ticketTypes={ticketTypes}
         teamMembers={teamMembers}
         clients={clients}
+        searchInputRef={searchInputRef}
         onFromChange={handleFromChange}
         onToChange={handleToChange}
         onSearchChange={handleSearchChange}
@@ -493,10 +548,23 @@ export function TicketsPageClient({
       />
 
       <div className="px-6 pt-6">
+        {canCreateTickets ? (
+          <div className="mb-3 flex items-center justify-end">
+            <Button
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+              aria-label="Create new ticket"
+            >
+              New ticket
+            </Button>
+          </div>
+        ) : null}
+
         <TicketsTable
           tickets={tableTickets}
           showClient={showClient}
           defaultSort={isSearchMode ? "none" : "createdAtDesc"}
+          onOpenTicket={(ticketId) => router.push(`/tickets/${ticketId}`)}
           pagination={
             isSearchMode
               ? undefined
@@ -512,6 +580,20 @@ export function TicketsPageClient({
           isLoading={isLoading}
         />
       </div>
+
+      {canCreateTickets ? (
+        <CreateTicketDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          userType={userType}
+          clientId={clientId}
+          teamMemberId={teamMemberId}
+          ticketTypes={ticketTypes}
+          clients={clients}
+          teamMembers={teamMembers}
+          onCreated={(ticketId) => router.push(`/tickets/${ticketId}`)}
+        />
+      ) : null}
     </div>
   )
 }

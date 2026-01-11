@@ -3,19 +3,31 @@ import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
-import { TicketsPageClient } from "@/components/tickets/tickets-page-client"
+import { TicketDetailsPageClient } from "@/components/tickets/ticket-details-page-client"
 import { getAuth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
 
 export const metadata: Metadata = {
-  title: "Tickets",
-  description: "View and track tickets.",
+  title: "Ticket",
+  description: "View ticket details.",
 }
 
 export const runtime = "nodejs"
 
-export default async function Page() {
+type PageParams = { id: string }
+
+export default async function Page({
+  params,
+}: {
+  params: PageParams | Promise<PageParams>
+}) {
+  const { id } = await params
+  const ticketId = Number(id)
+  if (!Number.isFinite(ticketId) || !Number.isInteger(ticketId) || ticketId <= 0) {
+    redirect("/tickets")
+  }
+
   const session = await getAuth().api.getSession({
     headers: await headers(),
   })
@@ -53,7 +65,8 @@ export default async function Page() {
 
   return (
     <main className="w-full">
-      <TicketsPageClient
+      <TicketDetailsPageClient
+        ticketId={ticketId}
         userType={appUser.userType}
         internalRole={appUser.internalRole ?? null}
         teamMemberId={appUser.teamMemberId ?? null}

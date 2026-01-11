@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { LifebuoyIcon, MoonIcon, SidebarIcon, SunIcon } from "@phosphor-icons/react"
 import { useTheme } from "next-themes"
 
+import { AppCommandPalette } from "@/components/app-command-palette"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -235,6 +236,7 @@ export function SiteHeader({ title }: { title?: string }) {
       </div>
 
       <div className="flex h-full items-stretch border-l border-border">
+        <AppCommandPalette />
         <ThemeToggleButton />
         <NeedHelpPopover page={pathname} />
       </div>
