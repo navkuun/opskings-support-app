@@ -37,10 +37,112 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { isNumber, isRecord, isString } from "@/lib/type-guards"
 import { queries } from "@/zero/queries"
 
 const DEFAULT_FROM = "2025-01-01"
 const DEFAULT_TO = "2025-11-30"
+
+type DashboardMetricsResponse = {
+  total: number
+  open: number
+  avgResolutionHours: number | null
+  avgRating: number | null
+  createdByMonth: Record<string, number>
+  resolvedByMonth: Record<string, number>
+  openByMonth: Record<string, number>
+  avgResolutionHoursByMonth: Record<string, number | null>
+  ticketsByType: Array<{ ticketTypeId: number; count: number }>
+  ticketsByPriority: Array<{ priority: string; count: number }>
+  ticketsByPriorityStatus: Array<{ priority: string; status: "open" | "resolved"; count: number }>
+}
+
+function isNumberRecord(value: unknown): value is Record<string, number> {
+  if (!isRecord(value)) return false
+  return Object.values(value).every((entry) => isNumber(entry))
+}
+
+function isNullableNumberRecord(value: unknown): value is Record<string, number | null> {
+  if (!isRecord(value)) return false
+  return Object.values(value).every((entry) => entry === null || isNumber(entry))
+}
+
+function isTicketsByTypeRow(
+  value: unknown,
+): value is DashboardMetricsResponse["ticketsByType"][number] {
+  if (!isRecord(value)) return false
+  return isNumber(value.ticketTypeId) && isNumber(value.count)
+}
+
+function isTicketsByPriorityRow(
+  value: unknown,
+): value is DashboardMetricsResponse["ticketsByPriority"][number] {
+  if (!isRecord(value)) return false
+  return isString(value.priority) && isNumber(value.count)
+}
+
+function isTicketsByPriorityStatusRow(
+  value: unknown,
+): value is DashboardMetricsResponse["ticketsByPriorityStatus"][number] {
+  if (!isRecord(value)) return false
+  return (
+    isString(value.priority) &&
+    (value.status === "open" || value.status === "resolved") &&
+    isNumber(value.count)
+  )
+}
+
+function parseDashboardMetricsResponse(value: unknown): DashboardMetricsResponse | null {
+  if (!isRecord(value)) return null
+
+  const total = value.total
+  const open = value.open
+  const avgResolutionHours = value.avgResolutionHours
+  const avgRating = value.avgRating
+
+  const createdByMonth = value.createdByMonth
+  const resolvedByMonth = value.resolvedByMonth
+  const openByMonth = value.openByMonth
+  const avgResolutionHoursByMonth = value.avgResolutionHoursByMonth
+
+  const ticketsByType = value.ticketsByType
+  const ticketsByPriority = value.ticketsByPriority
+  const ticketsByPriorityStatus = value.ticketsByPriorityStatus
+
+  if (!isNumber(total)) return null
+  if (!isNumber(open)) return null
+  if (avgResolutionHours !== null && !isNumber(avgResolutionHours)) return null
+  if (avgRating !== null && !isNumber(avgRating)) return null
+
+  if (!isNumberRecord(createdByMonth)) return null
+  if (!isNumberRecord(resolvedByMonth)) return null
+  if (!isNumberRecord(openByMonth)) return null
+  if (!isNullableNumberRecord(avgResolutionHoursByMonth)) return null
+
+  if (!Array.isArray(ticketsByType) || !ticketsByType.every(isTicketsByTypeRow)) return null
+  if (!Array.isArray(ticketsByPriority) || !ticketsByPriority.every(isTicketsByPriorityRow))
+    return null
+  if (
+    !Array.isArray(ticketsByPriorityStatus) ||
+    !ticketsByPriorityStatus.every(isTicketsByPriorityStatusRow)
+  ) {
+    return null
+  }
+
+  return {
+    total,
+    open,
+    avgResolutionHours,
+    avgRating,
+    createdByMonth,
+    resolvedByMonth,
+    openByMonth,
+    avgResolutionHoursByMonth,
+    ticketsByType,
+    ticketsByPriority,
+    ticketsByPriorityStatus,
+  }
+}
 
 function parseDateToUtcMs(date: string, which: "start" | "end") {
   const [yearStr, monthStr, dayStr] = date.split("-")
@@ -389,20 +491,6 @@ export function DashboardClient() {
     return map
   }, [ticketTypes])
 
-  type DashboardMetricsResponse = {
-    total: number
-    open: number
-    avgResolutionHours: number | null
-    avgRating: number | null
-    createdByMonth: Record<string, number>
-    resolvedByMonth: Record<string, number>
-    openByMonth: Record<string, number>
-    avgResolutionHoursByMonth: Record<string, number | null>
-    ticketsByType: Array<{ ticketTypeId: number; count: number }>
-    ticketsByPriority: Array<{ priority: string; count: number }>
-    ticketsByPriorityStatus: Array<{ priority: string; status: "open" | "resolved"; count: number }>
-  }
-
   const [metrics, setMetrics] = React.useState<DashboardMetricsResponse | null>(null)
   const [metricsError, setMetricsError] = React.useState<string | null>(null)
   const [metricsLoading, setMetricsLoading] = React.useState(true)
@@ -427,17 +515,25 @@ export function DashboardClient() {
         })
 
         if (!res.ok) {
-          const body = (await res.json().catch(() => null)) as
-            | { error?: string }
-            | null
+          const body: unknown = await res.json().catch(() => null)
+          const message =
+            isRecord(body) && isString(body.error) && body.error.trim() ? body.error : null
           setMetrics(null)
-          setMetricsError(body?.error ?? `Request failed (${res.status})`)
+          setMetricsError(message ?? `Request failed (${res.status})`)
           setMetricsLoading(false)
           return
         }
 
-        const json = (await res.json()) as DashboardMetricsResponse
-        setMetrics(json)
+        const json: unknown = await res.json()
+        const parsed = parseDashboardMetricsResponse(json)
+        if (!parsed) {
+          setMetrics(null)
+          setMetricsError("Unexpected response from dashboard metrics.")
+          setMetricsLoading(false)
+          return
+        }
+
+        setMetrics(parsed)
         setMetricsLoading(false)
       } catch (error) {
         if (controller.signal.aborted) return
@@ -739,7 +835,7 @@ export function DashboardClient() {
         />
       </CardGroup>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-x-0">
         <TicketsOverTimeChart
           data={computed.ticketsOverTime}
           isLoading={isLoading}
@@ -813,7 +909,7 @@ function TicketsOverTimeChart({
   } satisfies ChartConfig
 
   return (
-    <CardGroup>
+    <CardGroup className="lg:rounded-r-none lg:[&_[data-corner=tr]]:hidden lg:[&_[data-corner=br]]:hidden">
       <Card variant="group" className="gap-4">
         <CardHeader>
           <div className="flex flex-col gap-3">
@@ -1046,7 +1142,7 @@ function TicketsByTypeChart({
   }, [slices])
 
   return (
-    <CardGroup>
+    <CardGroup className="lg:rounded-l-none lg:border-l-0 lg:[&_[data-corner=tl]]:hidden lg:[&_[data-corner=bl]]:hidden">
       <Card variant="group" className="flex flex-col">
         <CardHeader className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-0.5">

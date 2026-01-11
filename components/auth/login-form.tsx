@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
 import { authClient } from "@/lib/auth-client"
+import { isBoolean, isRecord } from "@/lib/type-guards"
 
 type EmailStatusResponse = {
   ok: boolean
@@ -17,6 +18,28 @@ type EmailStatusResponse = {
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
+}
+
+function parseEmailStatusResponse(value: unknown): EmailStatusResponse | null {
+  if (!isRecord(value)) return null
+
+  const ok = value.ok
+  const allowlisted = value.allowlisted
+  const allowlistType = value.allowlistType
+  const hasAuthUser = value.hasAuthUser
+
+  if (!isBoolean(ok)) return null
+  if (!isBoolean(allowlisted)) return null
+  if (
+    allowlistType !== null &&
+    allowlistType !== "client" &&
+    allowlistType !== "team_member"
+  ) {
+    return null
+  }
+  if (!isBoolean(hasAuthUser)) return null
+
+  return { ok, allowlisted, allowlistType, hasAuthUser }
 }
 
 export function LoginForm() {
@@ -111,7 +134,12 @@ export function LoginForm() {
           return
         }
 
-        const data = (await res.json()) as EmailStatusResponse
+        const json: unknown = await res.json()
+        const data = parseEmailStatusResponse(json)
+        if (!data) {
+          setError("Something went wrong. Please try again.")
+          return
+        }
 
         if (!data.ok) {
           setError("Something went wrong. Please try again.")

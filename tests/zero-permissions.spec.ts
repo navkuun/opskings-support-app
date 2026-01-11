@@ -1,10 +1,17 @@
 import { expect, test } from "@playwright/test"
 
+import { isBoolean, isNumber, isRecord, isString } from "./test-guards"
+
 type SeedAllowlistResponse = {
   ok: boolean
   kind: "client" | "team_member"
   id: number | null
   email: string
+}
+
+type DebugSessionResponse = {
+  ok: boolean
+  user: { email?: string } | null
 }
 
 type ZeroTransformOk = [
@@ -23,6 +30,48 @@ type ZeroAst = {
 function uniqueEmail(prefix: string) {
   const rand = Math.random().toString(16).slice(2)
   return `${prefix}-${Date.now()}-${rand}@example.com`
+}
+
+function parseSeedAllowlistResponse(value: unknown): SeedAllowlistResponse | null {
+  if (!isRecord(value)) return null
+
+  const ok = value.ok
+  const kind = value.kind
+  const id = value.id
+  const email = value.email
+
+  if (!isBoolean(ok)) return null
+  if (kind !== "client" && kind !== "team_member") return null
+  if (id !== null && !isNumber(id)) return null
+  if (!isString(email)) return null
+
+  return { ok, kind, id, email }
+}
+
+function parseDebugSessionResponse(value: unknown): DebugSessionResponse | null {
+  if (!isRecord(value)) return null
+
+  const ok = value.ok
+  const user = value.user
+  if (!isBoolean(ok)) return null
+
+  if (user === null) return { ok, user: null }
+  if (!isRecord(user)) return null
+
+  const email = user.email
+  if (email !== undefined && !isString(email)) return null
+  return { ok, user: { email } }
+}
+
+function parseTokenResponse(value: unknown): { ok: boolean; token: string | null } | null {
+  if (!isRecord(value)) return null
+  const ok = value.ok
+  const token = value.token
+
+  if (!isBoolean(ok)) return null
+  if (token !== null && !isString(token)) return null
+
+  return { ok, token }
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -98,12 +147,15 @@ async function seedAllowlist(
     data: { kind, email },
   })
   expect(res.ok()).toBeTruthy()
-  const json = (await res.json()) as SeedAllowlistResponse
-  expect(json.ok).toBeTruthy()
-  expect(json.kind).toBe(kind)
-  expect(json.email).toBe(email.toLowerCase())
-  expect(typeof json.id).toBe("number")
-  return { email: json.email, id: json.id as number }
+  const json: unknown = await res.json()
+  const parsed = parseSeedAllowlistResponse(json)
+  if (!parsed) throw new Error("Unexpected seed-allowlist response")
+  expect(parsed.ok).toBeTruthy()
+  expect(parsed.kind).toBe(kind)
+  expect(parsed.email).toBe(email.toLowerCase())
+  expect(typeof parsed.id).toBe("number")
+  if (parsed.id == null) throw new Error("Expected allowlist id")
+  return { email: parsed.email, id: parsed.id }
 }
 
 async function pollForResetUrl(page: import("@playwright/test").Page, email: string) {
@@ -113,8 +165,9 @@ async function pollForResetUrl(page: import("@playwright/test").Page, email: str
   while (Date.now() < deadline) {
     const res = await page.request.get(endpoint)
     if (res.ok()) {
-      const json = (await res.json()) as { ok: boolean; token: string | null }
-      if (json.ok && json.token) return json.token
+      const json: unknown = await res.json()
+      const parsed = parseTokenResponse(json)
+      if (parsed?.ok && parsed.token) return parsed.token
     }
     await page.waitForTimeout(200)
   }
@@ -150,8 +203,9 @@ async function signIn(page: import("@playwright/test").Page, email: string, pass
     .poll(async () => {
       const res = await page.request.get("/api/auth/debug-session")
       if (!res.ok()) return false
-      const json = (await res.json()) as { ok: boolean; user: { email?: string } | null }
-      return json.ok && json.user?.email === email
+      const json: unknown = await res.json()
+      const parsed = parseDebugSessionResponse(json)
+      return parsed?.ok === true && parsed.user?.email === email
     })
     .toBe(true)
 }
@@ -175,7 +229,7 @@ async function fetchQueryAst(
   })
   expect(res.ok()).toBeTruthy()
 
-  const json = (await res.json()) as unknown
+  const json: unknown = await res.json()
   if (!Array.isArray(json) || json[0] !== "transformed") {
     throw new Error("Unexpected Zero transform response")
   }

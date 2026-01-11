@@ -46,3 +46,7 @@ zero.db-*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# core
+
+core

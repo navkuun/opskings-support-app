@@ -2,6 +2,7 @@ import "server-only"
 
 import fs from "node:fs"
 import path from "node:path"
+import { z } from "zod"
 
 type EmailVerificationEntry = {
   url: string
@@ -15,13 +16,24 @@ const globalForRi = globalThis as typeof globalThis & {
   __riEmailVerificationMailbox?: Map<string, EmailVerificationEntry>
 }
 
+const mailboxSchema = z.record(
+  z.string(),
+  z.object({
+    url: z.string(),
+    token: z.string(),
+    createdAt: z.number(),
+  }),
+)
+
 function readFromDisk(): Map<string, EmailVerificationEntry> {
   try {
     const raw = fs.readFileSync(mailboxPath, "utf8")
-    const parsed = JSON.parse(raw) as Record<string, EmailVerificationEntry>
-    return new Map(Object.entries(parsed))
+    const parsed: unknown = JSON.parse(raw)
+    const result = mailboxSchema.safeParse(parsed)
+    if (!result.success) return new Map<string, EmailVerificationEntry>()
+    return new Map(Object.entries(result.data))
   } catch {
-    return new Map()
+    return new Map<string, EmailVerificationEntry>()
   }
 }
 
@@ -75,4 +87,3 @@ export function clearEmailVerificationLink(email: string) {
   map.delete(email.toLowerCase())
   writeToDisk(map)
 }
-

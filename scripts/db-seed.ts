@@ -35,7 +35,7 @@ function parseArgs(argv: string[]) {
     fileFlagIdx === -1 ? null : (argv[fileFlagIdx + 1] ?? null)
 
   const positional = argv.find((arg) => !arg.startsWith("-")) ?? null
-  const file = fileFromFlag ?? positional ?? "db-reference/seed.sql"
+  const file = fileFromFlag ?? positional ?? "seed/seed.sql"
 
   return {
     file,

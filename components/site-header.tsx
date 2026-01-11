@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toastManager } from "@/components/ui/toast"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { cn } from "@/lib/utils"
+import { isRecord } from "@/lib/type-guards"
 
 function toTitleCase(input: string) {
   return input
@@ -76,11 +77,8 @@ export function SiteHeader({ title }: { title?: string }) {
         })
 
         if (!res.ok) {
-          const json = (await res.json().catch(() => null)) as unknown
-          const error =
-            json && typeof json === "object" && "error" in json
-              ? (json as { error?: unknown }).error
-              : null
+          const json: unknown = await res.json().catch(() => null)
+          const error = isRecord(json) ? json.error : null
           throw new Error(
             typeof error === "string" && error.trim()
               ? error

@@ -37,10 +37,22 @@ function CardGroup({ className, children, ...props }: React.ComponentProps<"div"
       {...props}
     >
       <div className="pointer-events-none absolute inset-0 z-10 select-none" aria-hidden="true">
-        <div className="absolute left-[-7px] top-[-7px] h-[14px] w-[14px] rounded-[3px] border border-border bg-card" />
-        <div className="absolute right-[-7px] top-[-7px] h-[14px] w-[14px] rounded-[3px] border border-border bg-card" />
-        <div className="absolute bottom-[-7px] left-[-7px] h-[14px] w-[14px] rounded-[3px] border border-border bg-card" />
-        <div className="absolute bottom-[-7px] right-[-7px] h-[14px] w-[14px] rounded-[3px] border border-border bg-card" />
+        <div
+          data-corner="tl"
+          className="absolute left-[-7px] top-[-7px] h-[14px] w-[14px] rounded-[3px] border border-border bg-card"
+        />
+        <div
+          data-corner="tr"
+          className="absolute right-[-7px] top-[-7px] h-[14px] w-[14px] rounded-[3px] border border-border bg-card"
+        />
+        <div
+          data-corner="bl"
+          className="absolute bottom-[-7px] left-[-7px] h-[14px] w-[14px] rounded-[3px] border border-border bg-card"
+        />
+        <div
+          data-corner="br"
+          className="absolute bottom-[-7px] right-[-7px] h-[14px] w-[14px] rounded-[3px] border border-border bg-card"
+        />
       </div>
       {children}
     </div>

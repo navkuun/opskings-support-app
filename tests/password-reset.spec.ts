@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { isBoolean, isNumber, isRecord, isString } from "./test-guards"
+
 type SeedAllowlistResponse = {
   ok: boolean
   kind: "client" | "team_member"
@@ -7,9 +9,56 @@ type SeedAllowlistResponse = {
   email: string
 }
 
+type DebugSessionResponse = {
+  ok: boolean
+  user: { email?: string } | null
+}
+
 function uniqueEmail(prefix: string) {
   const rand = Math.random().toString(16).slice(2)
   return `${prefix}-${Date.now()}-${rand}@example.com`
+}
+
+function parseSeedAllowlistResponse(value: unknown): SeedAllowlistResponse | null {
+  if (!isRecord(value)) return null
+
+  const ok = value.ok
+  const kind = value.kind
+  const id = value.id
+  const email = value.email
+
+  if (!isBoolean(ok)) return null
+  if (kind !== "client" && kind !== "team_member") return null
+  if (id !== null && !isNumber(id)) return null
+  if (!isString(email)) return null
+
+  return { ok, kind, id, email }
+}
+
+function parseDebugSessionResponse(value: unknown): DebugSessionResponse | null {
+  if (!isRecord(value)) return null
+
+  const ok = value.ok
+  const user = value.user
+  if (!isBoolean(ok)) return null
+
+  if (user === null) return { ok, user: null }
+  if (!isRecord(user)) return null
+
+  const email = user.email
+  if (email !== undefined && !isString(email)) return null
+  return { ok, user: { email } }
+}
+
+function parseTokenResponse(value: unknown): { ok: boolean; token: string | null } | null {
+  if (!isRecord(value)) return null
+  const ok = value.ok
+  const token = value.token
+
+  if (!isBoolean(ok)) return null
+  if (token !== null && !isString(token)) return null
+
+  return { ok, token }
 }
 
 async function seedAllowlist(
@@ -21,11 +70,13 @@ async function seedAllowlist(
     data: { kind, email },
   })
   expect(res.ok()).toBeTruthy()
-  const json = (await res.json()) as SeedAllowlistResponse
-  expect(json.ok).toBeTruthy()
-  expect(json.email).toBe(email.toLowerCase())
-  expect(typeof json.id).toBe("number")
-  return json.email
+  const json: unknown = await res.json()
+  const parsed = parseSeedAllowlistResponse(json)
+  if (!parsed) throw new Error("Unexpected seed-allowlist response")
+  expect(parsed.ok).toBeTruthy()
+  expect(parsed.email).toBe(email.toLowerCase())
+  expect(typeof parsed.id).toBe("number")
+  return parsed.email
 }
 
 async function waitForSessionEmail(
@@ -36,7 +87,8 @@ async function waitForSessionEmail(
     .poll(async () => {
       const res = await page.request.get("/api/auth/debug-session")
       if (!res.ok()) return null
-      return (await res.json()) as { ok: boolean; user: { email?: string } | null }
+      const json: unknown = await res.json()
+      return parseDebugSessionResponse(json)
     })
     .toMatchObject({ ok: true, user: { email } })
 }
@@ -51,8 +103,9 @@ async function pollForResetUrl(
   while (Date.now() < deadline) {
     const res = await page.request.get(endpoint)
     if (res.ok()) {
-      const json = (await res.json()) as { ok: boolean; token: string | null }
-      if (json.ok && json.token) return json.token
+      const json: unknown = await res.json()
+      const parsed = parseTokenResponse(json)
+      if (parsed?.ok && parsed.token) return parsed.token
     }
     await page.waitForTimeout(200)
   }
@@ -91,7 +144,13 @@ test("password reset flow sets a new password (dev mailbox)", async ({ page }) =
 
   await page.context().clearCookies()
   await expect
-    .poll(async () => (await (await page.request.get("/api/auth/debug-session")).json() as { ok: boolean }).ok)
+    .poll(async () => {
+      const res = await page.request.get("/api/auth/debug-session")
+      if (!res.ok()) return null
+      const json: unknown = await res.json()
+      const parsed = parseDebugSessionResponse(json)
+      return parsed?.ok ?? null
+    })
     .toBe(false)
 
   // Request a new reset token and reset password.

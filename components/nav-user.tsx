@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/sidebar"
 import { authClient } from "@/lib/auth-client"
 import { Badge } from "@/components/ui/badge"
+import { isRecord } from "@/lib/type-guards"
 
 function getInitials(value: string) {
   const trimmed = value.trim()
@@ -67,6 +68,25 @@ type AppUserMeResponse = {
   internalRole: "support_agent" | "manager" | "admin" | null
 }
 
+function parseAppUserMeResponse(value: unknown): AppUserMeResponse | null {
+  if (!isRecord(value)) return null
+
+  const userType = value.userType
+  const internalRole = value.internalRole
+
+  if (userType !== "internal" && userType !== "client") return null
+  if (
+    internalRole !== null &&
+    internalRole !== "support_agent" &&
+    internalRole !== "manager" &&
+    internalRole !== "admin"
+  ) {
+    return null
+  }
+
+  return { userType, internalRole }
+}
+
 export function NavUser({
   user,
 }: {
@@ -94,7 +114,9 @@ export function NavUser({
         })
         if (!res.ok) return
 
-        const data = (await res.json()) as AppUserMeResponse
+        const json: unknown = await res.json()
+        const data = parseAppUserMeResponse(json)
+        if (!data) return
         const formattedRole =
           data.userType === "client"
             ? "Client"

@@ -1,3 +1,4 @@
+// essentially a 'push' command to easily generate and apply a new migration then generates zero schema
 import { spawnSync } from "node:child_process"
 
 function fail(message: string): never {
