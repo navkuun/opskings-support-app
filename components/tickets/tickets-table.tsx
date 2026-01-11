@@ -14,7 +14,6 @@ import {
 } from "@tanstack/react-table"
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -42,6 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 
 export type ClientTicketRow = {
   id: number
@@ -131,7 +131,11 @@ const columns: ColumnDef<ClientTicketRow>[] = [
     size: 180,
     cell: ({ row }) => {
       const value = row.getValue("clientName") as string | null | undefined
-      return value ? <div className="font-medium">{value}</div> : <span className="text-muted-foreground">—</span>
+      return value ? (
+        <div className="font-medium">{value}</div>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      )
     },
   },
   {
@@ -166,7 +170,10 @@ const columns: ColumnDef<ClientTicketRow>[] = [
 
       return (
         <Badge variant="outline">
-          <span aria-hidden="true" className={cn("size-1.5 rounded-full", getPriorityDot(priority))} />
+          <span
+            aria-hidden="true"
+            className={cn("size-1.5 rounded-full", getPriorityDot(priority))}
+          />
           {label}
         </Badge>
       )
@@ -185,11 +192,7 @@ const columns: ColumnDef<ClientTicketRow>[] = [
       const raw = row.getValue("createdAt") as string | null
       if (!raw) return <span className="text-muted-foreground">—</span>
 
-      return (
-        <div className="text-muted-foreground tabular-nums">
-          {new Date(raw).toLocaleString()}
-        </div>
-      )
+      return <div className="text-muted-foreground tabular-nums">{new Date(raw).toLocaleString()}</div>
     },
   },
 ]
@@ -208,9 +211,7 @@ export function TicketsTable({
     pageIndex: 0,
     pageSize,
   })
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { id: "createdAt", desc: true },
-  ])
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: "createdAt", desc: true }])
 
   const tableColumns = React.useMemo(() => {
     if (showClient) return columns
@@ -295,8 +296,12 @@ export function TicketsTable({
                         : flexRender(header.column.columnDef.header, header.getContext())}
                       {canSort
                         ? {
-                            asc: <ChevronUpIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />,
-                            desc: <ChevronDownIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />,
+                            asc: (
+                              <ChevronUpIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />
+                            ),
+                            desc: (
+                              <ChevronDownIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />
+                            ),
                           }[(sort as string) ?? ""] ?? null
                         : null}
                     </div>
@@ -394,3 +399,4 @@ export function TicketsTable({
     </Frame>
   )
 }
+

@@ -9,6 +9,11 @@ import { KpiCard, KpiDelta } from "@/components/dashboard/kpi"
 import { TicketsByPriorityCard } from "@/components/dashboard/tickets-by-priority-card"
 import { TicketsByTypeChart } from "@/components/dashboard/tickets-by-type-chart"
 import { TicketsOverTimeChart } from "@/components/dashboard/tickets-over-time-chart"
+import { CardGroup } from "@/components/ui/card"
+import {
+  type DashboardMetricsResponse,
+  parseDashboardMetricsResponse,
+} from "@/lib/dashboard/metrics"
 import {
   buildMonthRange,
   formatCompactNumber,
@@ -18,11 +23,6 @@ import {
   parseDateToUtcMs,
   percentChange,
 } from "@/lib/dashboard/utils"
-import { CardGroup } from "@/components/ui/card"
-import {
-  type DashboardMetricsResponse,
-  parseDashboardMetricsResponse,
-} from "@/lib/dashboard/metrics"
 import { isRecord, isString } from "@/lib/type-guards"
 import { queries } from "@/zero/queries"
 
@@ -387,3 +387,4 @@ export function DashboardClient() {
     </div>
   )
 }
+

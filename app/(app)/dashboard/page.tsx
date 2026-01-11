@@ -7,7 +7,7 @@ import { getAuth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
 
-import { DashboardClient } from "./dashboard-client"
+import { DashboardClient } from "@/components/dashboard/dashboard-client"
 
 export const metadata: Metadata = {
   title: "Dashboard",

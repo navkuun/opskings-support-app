@@ -10,7 +10,7 @@ import { clients } from "@/lib/db/schema/clients"
 import { tickets } from "@/lib/db/schema/tickets"
 import { ticketTypes } from "@/lib/db/schema/ticket-types"
 
-import { TicketsTable, type ClientTicketRow } from "./tickets-table"
+import { TicketsTable, type ClientTicketRow } from "@/components/tickets/tickets-table"
 
 export const metadata: Metadata = {
   title: "Tickets",
