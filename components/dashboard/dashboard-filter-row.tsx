@@ -208,7 +208,7 @@ export function DashboardFilterRow({
           <Button
             variant="ghost"
             size="lg"
-            className="h-full w-full rounded-none border-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/40"
+            className="h-full w-full rounded-none border-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/40 sm:h-full"
             onClick={onReset}
           >
             Reset
