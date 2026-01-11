@@ -5,22 +5,17 @@ import { useQuery } from "@rocicorp/zero/react"
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from "recharts"
 import type { PieLabelRenderProps } from "recharts"
 import { useRouter, useSearchParams } from "next/navigation"
+import { CalendarIcon } from "lucide-react"
 import {
-  CalendarBlankIcon,
-  FlagIcon,
-  FunnelIcon,
   MinusIcon,
-  TicketIcon,
   TrendDownIcon,
   TrendUpIcon,
-  UserCircleIcon,
-  XIcon,
 } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   type ChartConfig,
   ChartContainer,
@@ -28,6 +23,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -301,22 +297,113 @@ function SegmentedButtons<T extends string>({
   )
 }
 
-function FilterRow({
-  icon: Icon,
-  label,
-  children,
+function formatDateLabel(date: Date | undefined) {
+  if (!date) return ""
+  return date.toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+function parseYmdDate(value: string): Date | null {
+  const [yStr, mStr, dStr] = value.split("-")
+  const year = Number(yStr)
+  const month = Number(mStr)
+  const day = Number(dStr)
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null
+  }
+
+  const date = new Date(year, month - 1, day)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null
+  }
+  return date
+}
+
+function formatDateToYmd(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function DatePickerSegment({
+  id,
+  prefix,
+  value,
+  onValueChange,
 }: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  children: React.ReactNode
+  id: string
+  prefix: "From" | "To"
+  value: string
+  onValueChange: (next: string) => void
 }) {
+  const [open, setOpen] = React.useState(false)
+
+  const date = React.useMemo(() => parseYmdDate(value) ?? undefined, [value])
+  const [month, setMonth] = React.useState<Date | undefined>(date)
+
+  React.useEffect(() => {
+    setMonth(date)
+  }, [date])
+
+  const displayValue = `${prefix}: ${formatDateLabel(date)}`
+
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-      <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
-        <Icon className="size-4 shrink-0" aria-hidden="true" />
-        <span className="truncate">{label}</span>
-      </div>
-      {children}
+    <div className="relative flex w-full items-stretch">
+      <Input
+        id={id}
+        aria-label={`${prefix} date`}
+        size="sm"
+        value={displayValue}
+        readOnly
+        className="w-full rounded-none border-0 bg-transparent shadow-none"
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault()
+            setOpen(true)
+          }
+        }}
+      />
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="absolute right-2 top-1/2 size-6 -translate-y-1/2"
+            />
+          }
+        >
+          <CalendarIcon className="size-3.5" aria-hidden="true" />
+          <span className="sr-only">Select date</span>
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          alignOffset={-8}
+          sideOffset={10}
+          className="w-auto"
+        >
+          <div className="-mx-4 -my-4">
+            <Calendar
+              mode="single"
+              selected={date}
+              captionLayout="dropdown"
+              month={month}
+              onMonthChange={setMonth}
+              onSelect={(next) => {
+                if (!next) return
+                onValueChange(formatDateToYmd(next))
+                setOpen(false)
+              }}
+            />
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
@@ -426,22 +513,6 @@ export function DashboardClient() {
   const ticketTypeParam = searchParams.get("ticketTypeId") ?? "any"
   const priorityParam = searchParams.get("priority") ?? "any"
 
-  const [filtersOpen, setFiltersOpen] = React.useState(false)
-  const [draftFrom, setDraftFrom] = React.useState(from)
-  const [draftTo, setDraftTo] = React.useState(to)
-  const [draftAssignedTo, setDraftAssignedTo] = React.useState(assignedToParam)
-  const [draftTicketTypeId, setDraftTicketTypeId] = React.useState(ticketTypeParam)
-  const [draftPriority, setDraftPriority] = React.useState(priorityParam)
-
-  React.useEffect(() => {
-    if (!filtersOpen) return
-    setDraftFrom(from)
-    setDraftTo(to)
-    setDraftAssignedTo(assignedToParam)
-    setDraftTicketTypeId(ticketTypeParam)
-    setDraftPriority(priorityParam)
-  }, [assignedToParam, filtersOpen, from, priorityParam, ticketTypeParam, to])
-
   const createdFrom = React.useMemo(() => parseDateToUtcMs(from, "start"), [from])
   const createdTo = React.useMemo(() => parseDateToUtcMs(to, "end"), [to])
 
@@ -482,6 +553,32 @@ export function DashboardClient() {
     ],
     [],
   )
+
+  const teamMemberLabelByValue = React.useMemo(() => {
+    const map = new Map<string, string>()
+    map.set("none", "Unassigned")
+    for (const tm of teamMembers) {
+      map.set(String(tm.id), formatTeamMemberLabel(tm.username))
+    }
+    return map
+  }, [teamMembers])
+
+  const ticketTypeLabelByValue = React.useMemo(() => {
+    const map = new Map<string, string>()
+    for (const tt of ticketTypes) {
+      map.set(String(tt.id), tt.typeName)
+    }
+    return map
+  }, [ticketTypes])
+
+  const priorityLabelByValue = React.useMemo(() => {
+    const map = new Map<string, string>()
+    map.set("low", "Low")
+    map.set("medium", "Medium")
+    map.set("high", "High")
+    map.set("urgent", "Urgent")
+    return map
+  }, [])
 
   const ticketTypeNameById = React.useMemo(() => {
     const map = new Map<number, string>()
@@ -640,218 +737,253 @@ export function DashboardClient() {
     ticketTypesResult.type !== "complete" ||
     teamMembersResult.type !== "complete"
 
-  const resetDraftFilters = React.useCallback(() => {
-    setDraftFrom(DEFAULT_FROM)
-    setDraftTo(DEFAULT_TO)
-    setDraftAssignedTo("any")
-    setDraftTicketTypeId("any")
-    setDraftPriority("any")
-  }, [])
-
-  const applyDraftFilters = React.useCallback(() => {
+  const resetFilters = React.useCallback(() => {
     updateSearchParams(router, searchParams, {
-      from: draftFrom.trim() ? draftFrom : null,
-      to: draftTo.trim() ? draftTo : null,
-      assignedTo: draftAssignedTo === "any" ? null : draftAssignedTo,
-      ticketTypeId: draftTicketTypeId === "any" ? null : draftTicketTypeId,
-      priority: draftPriority === "any" ? null : draftPriority,
+      from: DEFAULT_FROM,
+      to: DEFAULT_TO,
+      assignedTo: null,
+      ticketTypeId: null,
+      priority: null,
     })
-    setFiltersOpen(false)
-  }, [draftAssignedTo, draftFrom, draftPriority, draftTicketTypeId, draftTo, router, searchParams])
+  }, [router, searchParams])
 
   return (
-    <div className="w-full space-y-6 px-6 py-8">
-      <div className="flex flex-wrap items-center justify-start gap-3">
-        <Popover
-          open={filtersOpen}
-          onOpenChange={(open) => setFiltersOpen(open)}
-        >
-          <PopoverTrigger render={<Button variant="outline" size="sm" />}>
-            <FunnelIcon />
-            Filters
-          </PopoverTrigger>
-          <PopoverContent align="start"  className="w-[92vw] max-w-sm">
-            <div className="-mx-4 -my-4 divide-y">
-              <div className="flex items-center justify-between gap-3 px-4 py-3">
-                <div className="text-sm font-semibold">Filters</div>
-                <Button variant="ghost" size="icon-xs" onClick={() => setFiltersOpen(false)}>
-                  <XIcon />
-                  <span className="sr-only">Close</span>
-                </Button>
-              </div>
+    <div className="w-full py-8">
+      <CardGroup className="rounded-none border-x-0 [&_[data-corner]]:hidden">
+        <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-6 md:divide-y-0">
+          <div className="flex items-stretch">
+            <DatePickerSegment
+              id="dash-from"
+              prefix="From"
+              value={from}
+              onValueChange={(next) =>
+                updateSearchParams(router, searchParams, { from: next })
+              }
+            />
+          </div>
 
-              <div className="px-4 py-3">
-                <div className="space-y-3">
-                  <FilterRow icon={CalendarBlankIcon} label="From">
-                    <Input
-                      id="dash-from"
-                      size="sm"
-                      className="w-44"
-                      type="date"
-                      value={draftFrom}
-                      onChange={(e) => setDraftFrom(e.target.value)}
-                    />
-                  </FilterRow>
+          <div className="flex items-stretch">
+            <DatePickerSegment
+              id="dash-to"
+              prefix="To"
+              value={to}
+              onValueChange={(next) =>
+                updateSearchParams(router, searchParams, { to: next })
+              }
+            />
+          </div>
 
-                  <FilterRow icon={CalendarBlankIcon} label="To">
-                    <Input
-                      id="dash-to"
-                      size="sm"
-                      className="w-44"
-                      type="date"
-                      value={draftTo}
-                      onChange={(e) => setDraftTo(e.target.value)}
-                    />
-                  </FilterRow>
+          <div className="flex items-stretch">
+            <Select
+              items={teamMemberItems}
+              value={assignedToParam === "any" ? null : assignedToParam}
+              onValueChange={(v) =>
+                updateSearchParams(router, searchParams, {
+                  assignedTo: v && v !== "any" ? v : null,
+                })
+              }
+            >
+              <SelectTrigger className="w-full rounded-none border-0 bg-transparent">
+                <SelectValue>
+                  {(value) => {
+                    if (!isString(value)) {
+                      return (
+                        <span className="text-muted-foreground/72">
+                          Team member
+                        </span>
+                      )
+                    }
 
-                  <FilterRow icon={UserCircleIcon} label="Team member">
-                    <Select
-                      items={teamMemberItems}
-                      value={draftAssignedTo}
-                      onValueChange={(v) => setDraftAssignedTo(v ?? "any")}
-                    >
-                      <SelectTrigger className="w-44">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="end">
-                        <SelectGroup>
-                          <SelectItem value="any">Any</SelectItem>
-                          <SelectItem value="none">Unassigned</SelectItem>
-                          {teamMembers.map((tm) => (
-                            <SelectItem key={tm.id} value={String(tm.id)}>
-                              {formatTeamMemberLabel(tm.username)}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </FilterRow>
+                    const label = teamMemberLabelByValue.get(value)
+                    if (!label) {
+                      return (
+                        <span className="text-muted-foreground/72">
+                          Team member
+                        </span>
+                      )
+                    }
+                    return label
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectGroup>
+                  <SelectItem value="any">Any</SelectItem>
+                  <SelectItem value="none">Unassigned</SelectItem>
+                  {teamMembers.map((tm) => (
+                    <SelectItem key={tm.id} value={String(tm.id)}>
+                      {formatTeamMemberLabel(tm.username)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
 
-                  <FilterRow icon={TicketIcon} label="Ticket type">
-                    <Select
-                      items={ticketTypeItems}
-                      value={draftTicketTypeId}
-                      onValueChange={(v) => setDraftTicketTypeId(v ?? "any")}
-                    >
-                      <SelectTrigger className="w-44">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="end">
-                        <SelectGroup>
-                          <SelectItem value="any">Any</SelectItem>
-                          {ticketTypes.map((tt) => (
-                            <SelectItem key={tt.id} value={String(tt.id)}>
-                              {tt.typeName}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </FilterRow>
+          <div className="flex items-stretch">
+            <Select
+              items={ticketTypeItems}
+              value={ticketTypeParam === "any" ? null : ticketTypeParam}
+              onValueChange={(v) =>
+                updateSearchParams(router, searchParams, {
+                  ticketTypeId: v && v !== "any" ? v : null,
+                })
+              }
+            >
+              <SelectTrigger className="w-full rounded-none border-0 bg-transparent">
+                <SelectValue>
+                  {(value) => {
+                    if (!isString(value)) {
+                      return (
+                        <span className="text-muted-foreground/72">
+                          Ticket type
+                        </span>
+                      )
+                    }
 
-                  <FilterRow icon={FlagIcon} label="Priority">
-                    <Select
-                      items={priorityItems}
-                      value={draftPriority}
-                      onValueChange={(v) => setDraftPriority(v ?? "any")}
-                    >
-                      <SelectTrigger className="w-44">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="end">
-                        <SelectGroup>
-                          <SelectItem value="any">Any</SelectItem>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="urgent">Urgent</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </FilterRow>
-                </div>
-              </div>
+                    const label = ticketTypeLabelByValue.get(value)
+                    if (!label) {
+                      return (
+                        <span className="text-muted-foreground/72">
+                          Ticket type
+                        </span>
+                      )
+                    }
+                    return label
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectGroup>
+                  <SelectItem value="any">Any</SelectItem>
+                  {ticketTypes.map((tt) => (
+                    <SelectItem key={tt.id} value={String(tt.id)}>
+                      {tt.typeName}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
 
-              <div className="flex items-center justify-between gap-3 px-4 py-3">
-                <Button variant="outline" size="sm" onClick={resetDraftFilters}>
-                  Reset
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setFiltersOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={applyDraftFilters}>
-                    Apply
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+          <div className="flex items-stretch">
+            <Select
+              items={priorityItems}
+              value={priorityParam === "any" ? null : priorityParam}
+              onValueChange={(v) =>
+                updateSearchParams(router, searchParams, {
+                  priority: v && v !== "any" ? v : null,
+                })
+              }
+            >
+              <SelectTrigger className="w-full rounded-none border-0 bg-transparent">
+                <SelectValue>
+                  {(value) => {
+                    if (!isString(value)) {
+                      return (
+                        <span className="text-muted-foreground/72">
+                          Priority
+                        </span>
+                      )
+                    }
 
-      {metricsError ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          {metricsError}
+                    const label = priorityLabelByValue.get(value)
+                    if (!label) {
+                      return (
+                        <span className="text-muted-foreground/72">
+                          Priority
+                        </span>
+                      )
+                    }
+                    return label
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectGroup>
+                  <SelectItem value="any">Any</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-stretch">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-full w-full rounded-none text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/40"
+              onClick={resetFilters}
+            >
+              Reset
+            </Button>
+          </div>
         </div>
-      ) : null}
-
-      <CardGroup className="grid grid-cols-1 divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
-        <KpiCard
-          title="Total tickets"
-          value={formatCompactNumber(computed.total)}
-          description="Tickets created in the selected range."
-          right={<KpiDelta value={computed.totalMoM} isLoading={isLoading} />}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          title="Open tickets"
-          value={formatCompactNumber(computed.open)}
-          description="In progress tickets"
-          right={<KpiDelta value={computed.openMoM} isLoading={isLoading} />}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          title="Avg resolution time"
-          value={
-            computed.avgResolutionHours == null
-              ? "—"
-              : formatHours(computed.avgResolutionHours)
-          }
-          description="Resolved tickets only."
-          right={<KpiDelta value={computed.avgResolutionMoM} isLoading={isLoading} />}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          title="Customer satisfaction"
-          value={computed.avgRating == null ? "—" : formatRating(computed.avgRating)}
-          description="Avg rating from feedback."
-          right={
-            <div className="text-2xl font-semibold text-muted-foreground/70">
-              /5
-            </div>
-          }
-          isLoading={isLoading}
-        />
       </CardGroup>
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:gap-x-0">
-        <TicketsOverTimeChart
-          data={computed.ticketsOverTime}
-          isLoading={isLoading}
-        />
-        <TicketsByTypeChart
-          rows={computed.typeRows}
+      <div className="space-y-6 px-6 pt-6">
+        {metricsError ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {metricsError}
+          </div>
+        ) : null}
+
+        <CardGroup className="grid grid-cols-1 divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
+          <KpiCard
+            title="Total tickets"
+            value={formatCompactNumber(computed.total)}
+            description="Tickets created in the selected range."
+            right={<KpiDelta value={computed.totalMoM} isLoading={isLoading} />}
+            isLoading={isLoading}
+          />
+          <KpiCard
+            title="Open tickets"
+            value={formatCompactNumber(computed.open)}
+            description="In progress tickets"
+            right={<KpiDelta value={computed.openMoM} isLoading={isLoading} />}
+            isLoading={isLoading}
+          />
+          <KpiCard
+            title="Avg resolution time"
+            value={
+              computed.avgResolutionHours == null
+                ? "—"
+                : formatHours(computed.avgResolutionHours)
+            }
+            description="Resolved tickets only."
+            right={<KpiDelta value={computed.avgResolutionMoM} isLoading={isLoading} />}
+            isLoading={isLoading}
+          />
+          <KpiCard
+            title="Customer satisfaction"
+            value={computed.avgRating == null ? "—" : formatRating(computed.avgRating)}
+            description="Avg rating from feedback."
+            right={<div className="text-2xl font-semibold text-muted-foreground/70">/5</div>}
+            isLoading={isLoading}
+          />
+        </CardGroup>
+
+        <div className="grid gap-4 lg:grid-cols-2 lg:gap-x-0">
+          <TicketsOverTimeChart
+            data={computed.ticketsOverTime}
+            isLoading={isLoading}
+          />
+          <TicketsByTypeChart
+            rows={computed.typeRows}
+            isLoading={isLoading}
+          />
+        </div>
+
+        <TicketsByPriorityCard
+          total={computed.total}
+          rows={computed.priorityRows}
+          statusRows={computed.priorityStatusRows}
           isLoading={isLoading}
         />
       </div>
-
-      <TicketsByPriorityCard
-        total={computed.total}
-        rows={computed.priorityRows}
-        statusRows={computed.priorityStatusRows}
-        isLoading={isLoading}
-      />
     </div>
   )
 }
