@@ -22,7 +22,13 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
@@ -51,6 +57,10 @@ type DashboardMetricsResponse = {
   ticketsByType: Array<{ ticketTypeId: number; count: number }>
   ticketsByPriority: Array<{ priority: string; count: number }>
   ticketsByPriorityStatus: Array<{ priority: string; status: "open" | "resolved"; count: number }>
+}
+
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value)
 }
 
 function isNumberRecord(value: unknown): value is Record<string, number> {
@@ -115,11 +125,11 @@ function parseDashboardMetricsResponse(value: unknown): DashboardMetricsResponse
   if (!isNumberRecord(openByMonth)) return null
   if (!isNullableNumberRecord(avgResolutionHoursByMonth)) return null
 
-  if (!Array.isArray(ticketsByType) || !ticketsByType.every(isTicketsByTypeRow)) return null
-  if (!Array.isArray(ticketsByPriority) || !ticketsByPriority.every(isTicketsByPriorityRow))
+  if (!isUnknownArray(ticketsByType) || !ticketsByType.every(isTicketsByTypeRow)) return null
+  if (!isUnknownArray(ticketsByPriority) || !ticketsByPriority.every(isTicketsByPriorityRow))
     return null
   if (
-    !Array.isArray(ticketsByPriorityStatus) ||
+    !isUnknownArray(ticketsByPriorityStatus) ||
     !ticketsByPriorityStatus.every(isTicketsByPriorityStatusRow)
   ) {
     return null
@@ -265,6 +275,31 @@ function updateSearchParams(
   router.replace(`?${next.toString()}`)
 }
 
+function renderMultiSelectValue({
+  value,
+  placeholder,
+  labelByValue,
+}: {
+  value: unknown
+  placeholder: string
+  labelByValue: Map<string, string>
+}) {
+  if (!isUnknownArray(value)) {
+    return <span className="text-muted-foreground/72">{placeholder}</span>
+  }
+
+  const values = value.filter(isString)
+  if (values.length === 0) {
+    return <span className="text-muted-foreground/72">{placeholder}</span>
+  }
+
+  const firstValue = values[0]
+  const firstLabel = firstValue ? labelByValue.get(firstValue) ?? firstValue : ""
+  const additional = values.length > 1 ? ` (+${values.length - 1} more)` : ""
+
+  return `${firstLabel}${additional}`
+}
+
 function SegmentedButtons<T extends string>({
   value,
   onValueChange,
@@ -350,38 +385,39 @@ function DatePickerSegment({
     setMonth(date)
   }, [date])
 
-  const displayValue = `${prefix}: ${formatDateLabel(date)}`
-
   return (
     <div className="relative flex w-full items-stretch">
-      <Input
-        id={id}
-        aria-label={`${prefix} date`}
-        size="sm"
-        value={displayValue}
-        readOnly
-        className="w-full rounded-none border-0 bg-transparent shadow-none"
-        onClick={() => setOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault()
-            setOpen(true)
-          }
-        }}
-      />
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="absolute right-2 top-1/2 size-6 -translate-y-1/2"
-            />
-          }
-        >
-          <CalendarIcon className="size-3.5" aria-hidden="true" />
-          <span className="sr-only">Select date</span>
-        </PopoverTrigger>
+        <InputGroup className="h-full rounded-none border-0 bg-transparent shadow-none">
+          <InputGroupAddon align="inline-start" className="pl-3 pr-0">
+            <InputGroupText className="text-muted-foreground/72">
+              {prefix}:
+            </InputGroupText>
+          </InputGroupAddon>
+          <InputGroupInput
+            id={id}
+            aria-label={`${prefix} date`}
+            size="sm"
+            className={"!-border-0"}
+            value={formatDateLabel(date)}
+            placeholder="Jan 01, 2025"
+            readOnly
+            onClick={() => setOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault()
+                setOpen(true)
+              }
+            }}
+          />
+          <InputGroupAddon align="inline-end" className="pr-1">
+            <PopoverTrigger render={<InputGroupButton variant="ghost" size="icon-xs" />}>
+              <CalendarIcon className="size-3.5" aria-hidden="true" />
+              <span className="sr-only">Select date</span>
+            </PopoverTrigger>
+          </InputGroupAddon>
+        </InputGroup>
+
         <PopoverContent
           align="end"
           alignOffset={-8}
@@ -509,49 +545,50 @@ export function DashboardClient() {
 
   const from = searchParams.get("from") ?? DEFAULT_FROM
   const to = searchParams.get("to") ?? DEFAULT_TO
-  const assignedToParam = searchParams.get("assignedTo") ?? "any"
-  const ticketTypeParam = searchParams.get("ticketTypeId") ?? "any"
-  const priorityParam = searchParams.get("priority") ?? "any"
+  const assignedToParam = searchParams.get("assignedTo")
+  const ticketTypeParam = searchParams.get("ticketTypeId")
+  const priorityParam = searchParams.get("priority")
 
   const createdFrom = React.useMemo(() => parseDateToUtcMs(from, "start"), [from])
   const createdTo = React.useMemo(() => parseDateToUtcMs(to, "end"), [to])
+
+  const parseMultiParam = React.useCallback((value: string | null) => {
+    if (!value) return []
+    const tokens = value
+      .split(",")
+      .map((token) => token.trim())
+      .filter(Boolean)
+      .filter((token) => token !== "any")
+
+    const unique: string[] = []
+    const seen = new Set<string>()
+    for (const token of tokens) {
+      if (seen.has(token)) continue
+      seen.add(token)
+      unique.push(token)
+    }
+
+    return unique
+  }, [])
+
+  const assignedToValues = React.useMemo(
+    () => parseMultiParam(assignedToParam),
+    [assignedToParam, parseMultiParam],
+  )
+  const ticketTypeValues = React.useMemo(
+    () => parseMultiParam(ticketTypeParam),
+    [parseMultiParam, ticketTypeParam],
+  )
+  const priorityValues = React.useMemo(
+    () => parseMultiParam(priorityParam),
+    [parseMultiParam, priorityParam],
+  )
 
   const [ticketTypes, ticketTypesResult] = useQuery(
     queries.ticketTypes.list({ limit: 200 }),
   )
   const [teamMembers, teamMembersResult] = useQuery(
     queries.teamMembers.list({ limit: 200 }),
-  )
-
-  const teamMemberItems = React.useMemo(
-    () => [
-      { value: "any", label: "Any" },
-      { value: "none", label: "Unassigned" },
-      ...teamMembers.map((tm) => ({
-        value: String(tm.id),
-        label: formatTeamMemberLabel(tm.username),
-      })),
-    ],
-    [teamMembers],
-  )
-
-  const ticketTypeItems = React.useMemo(
-    () => [
-      { value: "any", label: "Any" },
-      ...ticketTypes.map((tt) => ({ value: String(tt.id), label: tt.typeName })),
-    ],
-    [ticketTypes],
-  )
-
-  const priorityItems = React.useMemo(
-    () => [
-      { value: "any", label: "Any" },
-      { value: "low", label: "Low" },
-      { value: "medium", label: "Medium" },
-      { value: "high", label: "High" },
-      { value: "urgent", label: "Urgent" },
-    ],
-    [],
   )
 
   const teamMemberLabelByValue = React.useMemo(() => {
@@ -599,12 +636,16 @@ export function DashboardClient() {
       setMetricsLoading(true)
       setMetricsError(null)
 
-      const params = new URLSearchParams()
-      params.set("from", from)
-      params.set("to", to)
-      params.set("assignedTo", assignedToParam)
-      params.set("ticketTypeId", ticketTypeParam)
-      params.set("priority", priorityParam)
+      const params = new URLSearchParams({ from, to })
+      if (assignedToParam && assignedToParam !== "any") {
+        params.set("assignedTo", assignedToParam)
+      }
+      if (ticketTypeParam && ticketTypeParam !== "any") {
+        params.set("ticketTypeId", ticketTypeParam)
+      }
+      if (priorityParam && priorityParam !== "any") {
+        params.set("priority", priorityParam)
+      }
 
       try {
         const res = await fetch(`/api/dashboard/metrics?${params.toString()}`, {
@@ -748,10 +789,10 @@ export function DashboardClient() {
   }, [router, searchParams])
 
   return (
-    <div className="w-full py-8">
+    <div className="w-full pb-8">
       <CardGroup className="rounded-none border-x-0 [&_[data-corner]]:hidden">
         <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-6 md:divide-y-0">
-          <div className="flex items-stretch">
+          <div className="flex h-10 items-stretch">
             <DatePickerSegment
               id="dash-from"
               prefix="From"
@@ -762,7 +803,7 @@ export function DashboardClient() {
             />
           </div>
 
-          <div className="flex items-stretch">
+          <div className="flex h-10 items-stretch">
             <DatePickerSegment
               id="dash-to"
               prefix="To"
@@ -773,37 +814,35 @@ export function DashboardClient() {
             />
           </div>
 
-          <div className="flex items-stretch">
+          <div className="flex h-10 items-stretch">
             <Select
-              items={teamMemberItems}
-              value={assignedToParam === "any" ? null : assignedToParam}
-              onValueChange={(v) =>
-                updateSearchParams(router, searchParams, {
-                  assignedTo: v && v !== "any" ? v : null,
-                })
-              }
-            >
-              <SelectTrigger className="w-full rounded-none border-0 bg-transparent">
-                <SelectValue>
-                  {(value) => {
-                    if (!isString(value)) {
-                      return (
-                        <span className="text-muted-foreground/72">
-                          Team member
-                        </span>
-                      )
-                    }
+              multiple
+              value={assignedToValues}
+              onValueChange={(next: string[]) => {
+                if (next.includes("any")) {
+                  updateSearchParams(router, searchParams, { assignedTo: null })
+                  return
+                }
 
-                    const label = teamMemberLabelByValue.get(value)
-                    if (!label) {
-                      return (
-                        <span className="text-muted-foreground/72">
-                          Team member
-                        </span>
-                      )
-                    }
-                    return label
-                  }}
+                const filtered = next
+                  .map((value) => value.trim())
+                  .filter(Boolean)
+                  .filter((value) => value !== "any")
+
+                updateSearchParams(router, searchParams, {
+                  assignedTo: filtered.length ? filtered.join(",") : null,
+                })
+              }}
+            >
+              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
+                <SelectValue>
+                  {(value: unknown) =>
+                    renderMultiSelectValue({
+                      value,
+                      placeholder: "Assignees…",
+                      labelByValue: teamMemberLabelByValue,
+                    })
+                  }
                 </SelectValue>
               </SelectTrigger>
               <SelectContent align="end">
@@ -820,37 +859,35 @@ export function DashboardClient() {
             </Select>
           </div>
 
-          <div className="flex items-stretch">
+          <div className="flex h-10 items-stretch">
             <Select
-              items={ticketTypeItems}
-              value={ticketTypeParam === "any" ? null : ticketTypeParam}
-              onValueChange={(v) =>
-                updateSearchParams(router, searchParams, {
-                  ticketTypeId: v && v !== "any" ? v : null,
-                })
-              }
-            >
-              <SelectTrigger className="w-full rounded-none border-0 bg-transparent">
-                <SelectValue>
-                  {(value) => {
-                    if (!isString(value)) {
-                      return (
-                        <span className="text-muted-foreground/72">
-                          Ticket type
-                        </span>
-                      )
-                    }
+              multiple
+              value={ticketTypeValues}
+              onValueChange={(next: string[]) => {
+                if (next.includes("any")) {
+                  updateSearchParams(router, searchParams, { ticketTypeId: null })
+                  return
+                }
 
-                    const label = ticketTypeLabelByValue.get(value)
-                    if (!label) {
-                      return (
-                        <span className="text-muted-foreground/72">
-                          Ticket type
-                        </span>
-                      )
-                    }
-                    return label
-                  }}
+                const filtered = next
+                  .map((value) => value.trim())
+                  .filter(Boolean)
+                  .filter((value) => value !== "any")
+
+                updateSearchParams(router, searchParams, {
+                  ticketTypeId: filtered.length ? filtered.join(",") : null,
+                })
+              }}
+            >
+              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
+                <SelectValue>
+                  {(value: unknown) =>
+                    renderMultiSelectValue({
+                      value,
+                      placeholder: "Ticket types…",
+                      labelByValue: ticketTypeLabelByValue,
+                    })
+                  }
                 </SelectValue>
               </SelectTrigger>
               <SelectContent align="end">
@@ -866,37 +903,35 @@ export function DashboardClient() {
             </Select>
           </div>
 
-          <div className="flex items-stretch">
+          <div className="flex h-10 items-stretch">
             <Select
-              items={priorityItems}
-              value={priorityParam === "any" ? null : priorityParam}
-              onValueChange={(v) =>
-                updateSearchParams(router, searchParams, {
-                  priority: v && v !== "any" ? v : null,
-                })
-              }
-            >
-              <SelectTrigger className="w-full rounded-none border-0 bg-transparent">
-                <SelectValue>
-                  {(value) => {
-                    if (!isString(value)) {
-                      return (
-                        <span className="text-muted-foreground/72">
-                          Priority
-                        </span>
-                      )
-                    }
+              multiple
+              value={priorityValues}
+              onValueChange={(next: string[]) => {
+                if (next.includes("any")) {
+                  updateSearchParams(router, searchParams, { priority: null })
+                  return
+                }
 
-                    const label = priorityLabelByValue.get(value)
-                    if (!label) {
-                      return (
-                        <span className="text-muted-foreground/72">
-                          Priority
-                        </span>
-                      )
-                    }
-                    return label
-                  }}
+                const filtered = next
+                  .map((value) => value.trim())
+                  .filter(Boolean)
+                  .filter((value) => value !== "any")
+
+                updateSearchParams(router, searchParams, {
+                  priority: filtered.length ? filtered.join(",") : null,
+                })
+              }}
+            >
+              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
+                <SelectValue>
+                  {(value: unknown) =>
+                    renderMultiSelectValue({
+                      value,
+                      placeholder: "Priorities…",
+                      labelByValue: priorityLabelByValue,
+                    })
+                  }
                 </SelectValue>
               </SelectTrigger>
               <SelectContent align="end">
@@ -911,7 +946,7 @@ export function DashboardClient() {
             </Select>
           </div>
 
-          <div className="flex items-stretch">
+          <div className="flex h-10 items-stretch">
             <Button
               variant="ghost"
               size="sm"

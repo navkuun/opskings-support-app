@@ -29,20 +29,33 @@ function parseOptionalInt(value: string | null) {
   return parsed
 }
 
+function parseCsvTokens(value: string | null) {
+  if (!value) return []
+  return value
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean)
+}
+
+type AssignedToFilter = {
+  includeUnassigned: boolean
+  ids: number[]
+}
+
 function buildTicketWhere({
   alias,
   createdFrom,
   createdTo,
   assignedTo,
-  ticketTypeId,
-  priority,
+  ticketTypeIds,
+  priorities,
 }: {
   alias?: string
   createdFrom: Date | null
   createdTo: Date | null
-  assignedTo: number | null | undefined
-  ticketTypeId: number | undefined
-  priority: string | undefined
+  assignedTo: AssignedToFilter | undefined
+  ticketTypeIds: number[] | undefined
+  priorities: string[] | undefined
 }) {
   const clauses: Array<ReturnType<typeof sql>> = []
   const col = (name: string) => (alias ? sql.raw(`${alias}.${name}`) : sql.raw(name))
@@ -50,20 +63,39 @@ function buildTicketWhere({
   if (createdFrom) clauses.push(sql`${col("created_at")} >= ${createdFrom}`)
   if (createdTo) clauses.push(sql`${col("created_at")} <= ${createdTo}`)
 
-  if (assignedTo !== undefined) {
+  if (assignedTo) {
+    const parts: Array<ReturnType<typeof sql>> = []
+    if (assignedTo.includeUnassigned) {
+      parts.push(sql`${col("assigned_to")} is null`)
+    }
+    if (assignedTo.ids.length) {
+      parts.push(
+        sql`${col("assigned_to")} in (${sql.join(
+          assignedTo.ids.map((id) => sql`${id}`),
+          sql`, `,
+        )})`,
+      )
+    }
+    if (parts.length === 1) clauses.push(parts[0] ?? sql`false`)
+    else if (parts.length > 1) clauses.push(sql`(${sql.join(parts, sql` or `)})`)
+  }
+
+  if (ticketTypeIds && ticketTypeIds.length) {
     clauses.push(
-      assignedTo === null
-        ? sql`${col("assigned_to")} is null`
-        : sql`${col("assigned_to")} = ${assignedTo}`,
+      sql`${col("ticket_type_id")} in (${sql.join(
+        ticketTypeIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})`,
     )
   }
 
-  if (ticketTypeId !== undefined) {
-    clauses.push(sql`${col("ticket_type_id")} = ${ticketTypeId}`)
-  }
-
-  if (priority !== undefined) {
-    clauses.push(sql`${col("priority")} = ${priority}`)
+  if (priorities && priorities.length) {
+    clauses.push(
+      sql`${col("priority")} in (${sql.join(
+        priorities.map((value) => sql`${value}`),
+        sql`, `,
+      )})`,
+    )
   }
 
   if (!clauses.length) return sql`true`
@@ -100,30 +132,51 @@ export async function GET(req: Request) {
   const createdFrom = fromParam ? parseDateToUtc(fromParam, "start") : null
   const createdTo = toParam ? parseDateToUtc(toParam, "end") : null
 
-  const assignedToRaw = url.searchParams.get("assignedTo")
-  const assignedTo =
-    assignedToRaw === "any" || assignedToRaw == null
+  const assignedToTokens = parseCsvTokens(url.searchParams.get("assignedTo"))
+  const assignedTo: AssignedToFilter | undefined =
+    !assignedToTokens.length || assignedToTokens.includes("any")
       ? undefined
-      : assignedToRaw === "none"
-        ? null
-        : (parseOptionalInt(assignedToRaw) ?? undefined)
+      : (() => {
+          const includeUnassigned = assignedToTokens.includes("none")
+          const ids = Array.from(
+            new Set(
+              assignedToTokens
+                .filter((token) => token !== "none")
+                .map((token) => parseOptionalInt(token))
+                .filter((value): value is number => value != null),
+            ),
+          )
 
-  const ticketTypeRaw = url.searchParams.get("ticketTypeId")
-  const ticketTypeId =
-    ticketTypeRaw === "any" || ticketTypeRaw == null
+          if (!includeUnassigned && !ids.length) return undefined
+          return { includeUnassigned, ids }
+        })()
+
+  const ticketTypeTokens = parseCsvTokens(url.searchParams.get("ticketTypeId"))
+  const ticketTypeIds =
+    !ticketTypeTokens.length || ticketTypeTokens.includes("any")
       ? undefined
-      : (parseOptionalInt(ticketTypeRaw) ?? undefined)
+      : Array.from(
+          new Set(
+            ticketTypeTokens
+              .map((token) => parseOptionalInt(token))
+              .filter((value): value is number => value != null),
+          ),
+        )
 
-  const priorityRaw = url.searchParams.get("priority")
-  const priority =
-    priorityRaw === "any" || priorityRaw == null ? undefined : priorityRaw.trim()
+  const priorityTokens = parseCsvTokens(url.searchParams.get("priority"))
+  const priorities =
+    !priorityTokens.length || priorityTokens.includes("any")
+      ? undefined
+      : Array.from(
+          new Set(priorityTokens.map((token) => token.trim()).filter(Boolean)),
+        )
 
   const ticketWhere = buildTicketWhere({
     createdFrom,
     createdTo,
     assignedTo,
-    ticketTypeId,
-    priority,
+    ticketTypeIds,
+    priorities,
   })
 
   const totalRows = await db.execute<{ total: number }>(
@@ -179,8 +232,8 @@ export async function GET(req: Request) {
         createdFrom,
         createdTo,
         assignedTo,
-        ticketTypeId,
-        priority,
+        ticketTypeIds,
+        priorities,
       })}
         and tf.rating is not null
     `,
