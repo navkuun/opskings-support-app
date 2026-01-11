@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"
+import { isRecord } from "@/lib/type-guards"
 import {
   Sidebar,
   SidebarContent,
@@ -41,30 +42,16 @@ type NavGroup = {
   items: NavItem[]
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: "General",
-    items: [
-      {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: HouseIcon,
-        iconWeight: "fill",
-      },
-    ],
-  },
-  {
-    label: "Support",
-    items: [
-      {
-        title: "Tickets",
-        href: "/tickets",
-        icon: TicketIcon,
-        iconWeight: "fill",
-      },
-    ],
-  },
-]
+type AppUserMeResponse = {
+  userType: "internal" | "client"
+}
+
+function parseAppUserMeResponse(value: unknown): AppUserMeResponse | null {
+  if (!isRecord(value)) return null
+  const userType = value.userType
+  if (userType !== "internal" && userType !== "client") return null
+  return { userType }
+}
 
 function isActivePath(pathname: string, href: string) {
   if (pathname === href) return true
@@ -108,6 +95,81 @@ function CrownSidebarMenuLink({
 export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const { data: session } = authClient.useSession()
+  const [userType, setUserType] = React.useState<"internal" | "client" | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    async function loadUserType() {
+      if (!session?.user) {
+        setUserType(null)
+        return
+      }
+
+      try {
+        const res = await fetch("/api/app-user/me", { cache: "no-store" })
+        if (!res.ok) return
+        const json: unknown = await res.json()
+        const parsed = parseAppUserMeResponse(json)
+        if (!parsed) return
+        if (cancelled) return
+        setUserType(parsed.userType)
+      } catch {
+        // Ignore; navigation still works with defaults.
+      }
+    }
+
+    void loadUserType()
+    return () => {
+      cancelled = true
+    }
+  }, [session?.user])
+
+  const homeHref = userType === "client" ? "/tickets" : "/dashboard"
+  const homeLabel = userType === "client" ? "Your Tickets" : "Dashboard"
+
+  const navGroups = React.useMemo<NavGroup[]>(() => {
+    if (userType === "client") {
+      return [
+        {
+          label: "Support",
+          items: [
+            {
+              title: "Your Tickets",
+              href: "/tickets",
+              icon: TicketIcon,
+              iconWeight: "fill",
+            },
+          ],
+        },
+      ]
+    }
+
+    return [
+      {
+        label: "General",
+        items: [
+          {
+            title: "Dashboard",
+            href: "/dashboard",
+            icon: HouseIcon,
+            iconWeight: "fill",
+          },
+        ],
+      },
+      {
+        label: "Support",
+        items: [
+          {
+            title: "Tickets",
+            href: "/tickets",
+            icon: TicketIcon,
+            iconWeight: "fill",
+          },
+        ],
+      },
+    ]
+  }, [userType])
 
   return (
     <Sidebar
@@ -121,8 +183,8 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              tooltip="Dashboard"
-              render={<Link href="/dashboard" />}
+              tooltip={homeLabel}
+              render={<Link href={homeHref} />}
               className={cn(
                 "h-auto justify-start bg-transparent p-0 hover:bg-transparent",
                 "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!p-0"
@@ -136,14 +198,14 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                 priority
                 className="rounded-sm"
               />
-              <span className="sr-only">Dashboard</span>
+              <span className="sr-only">{homeLabel}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent className="pt-2">
-        {NAV_GROUPS.map((group, idx) => (
+        {navGroups.map((group, idx) => (
           <SidebarGroup
             key={group.label}
             className="px-0 py-2 group-data-[collapsible=icon]:px-2"
@@ -163,7 +225,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
-            {idx < NAV_GROUPS.length - 1 ? (
+            {idx < navGroups.length - 1 ? (
               <SidebarSeparator className="mx-0 mt-2" />
             ) : null}
           </SidebarGroup>

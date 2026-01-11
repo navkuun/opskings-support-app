@@ -52,6 +52,18 @@ export const queries = defineQueries({
     ),
   },
   teamMembers: {
+    internalList: defineQuery(
+      z.object({
+        limit: z.number().int().positive().max(200).default(50),
+      }),
+      ({ args: { limit }, ctx }) => {
+        if (!isInternal(ctx)) {
+          return zql.teamMembers.where("id", -1)
+        }
+
+        return zql.teamMembers.orderBy("createdAt", "desc").limit(limit)
+      },
+    ),
     list: defineQuery(
       z.object({
         limit: z.number().int().positive().max(200).default(50),
@@ -80,6 +92,117 @@ export const queries = defineQueries({
     ),
   },
   tickets: {
+    list: defineQuery(
+      z.object({
+        limit: z.number().int().positive().max(200).default(30),
+        cursor: z
+          .object({
+            id: z.number().int().positive(),
+            createdAt: z.number().nullable(),
+          })
+          .optional(),
+        from: z.number().optional(),
+        to: z.number().optional(),
+        department: z.string().min(1).max(50).optional(),
+        status: z.array(z.string().min(1).max(50)).optional(),
+        priority: z.array(z.string().min(1).max(20)).optional(),
+        ticketTypeId: z.array(z.number().int().positive()).optional(),
+        assignedTo: z.array(z.number().int().positive()).optional(),
+        includeUnassigned: z.boolean().optional(),
+        search: z.string().min(1).max(255).optional(),
+      }),
+      ({
+        args: {
+          limit,
+          cursor,
+          from,
+          to,
+          department,
+          status,
+          priority,
+          ticketTypeId,
+          assignedTo,
+          includeUnassigned,
+          search,
+        },
+        ctx,
+      }) => {
+        let q = zql.tickets
+
+        if (!isInternal(ctx)) {
+          const clientId = getClientId(ctx)
+          q = clientId == null ? zql.tickets.where("id", -1) : q.where("clientId", clientId)
+        }
+
+        if (from != null && Number.isFinite(from)) {
+          q = q.where("createdAt", ">=", from)
+        }
+        if (to != null && Number.isFinite(to)) {
+          q = q.where("createdAt", "<=", to)
+        }
+
+        if (department) {
+          q = q.whereExists(
+            "ticketType",
+            (tt) => tt.where("department", department),
+            { flip: true },
+          )
+        }
+
+        if (status && status.length) {
+          q = q.where("status", "IN", status)
+        }
+
+        if (priority && priority.length) {
+          q = q.where("priority", "IN", priority)
+        }
+
+        if (ticketTypeId && ticketTypeId.length) {
+          q = q.where("ticketTypeId", "IN", ticketTypeId)
+        }
+
+        if (assignedTo && assignedTo.length && includeUnassigned) {
+          q = q.where(({ cmp, or }) =>
+            or(cmp("assignedTo", "IN", assignedTo), cmp("assignedTo", "IS", null)),
+          )
+        } else if (assignedTo && assignedTo.length) {
+          q = q.where("assignedTo", "IN", assignedTo)
+        } else if (includeUnassigned) {
+          q = q.where("assignedTo", "IS", null)
+        }
+
+        if (search) {
+          const trimmed = search.trim()
+          const asNumber = trimmed.replace(/^#/, "")
+          const parsed = Number(asNumber)
+
+          if (Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0) {
+            q = q.where(({ cmp, or }) =>
+              or(cmp("id", parsed), cmp("title", "ILIKE", `%${trimmed}%`)),
+            )
+          } else {
+            q = q.where("title", "ILIKE", `%${trimmed}%`)
+          }
+        }
+
+        q = q.orderBy("createdAt", "desc").orderBy("id", "desc")
+
+        if (cursor) {
+          q = q.start({ id: cursor.id, createdAt: cursor.createdAt })
+        }
+
+        q = q.limit(limit)
+        const withRelations = q
+          .related("ticketType", (t) => t.one())
+          .related("assignee", (t) => t.one())
+
+        if (isInternal(ctx)) {
+          return withRelations.related("client", (t) => t.one())
+        }
+
+        return withRelations
+      },
+    ),
     recent: defineQuery(
       z.object({
         limit: z.number().int().positive().max(200).default(50),

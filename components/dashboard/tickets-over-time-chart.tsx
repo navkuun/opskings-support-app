@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { isNumber, isRecord, isString } from "@/lib/type-guards"
 
 export function TicketsOverTimeChart({
   data,
@@ -57,6 +58,32 @@ export function TicketsOverTimeChart({
     if (year === "all") return data
     return data.filter((row) => row.monthKey.startsWith(`${year}-`))
   }, [data, year])
+
+  const forecastMonthKey = React.useMemo(() => {
+    const lastMonthKey = filteredData[filteredData.length - 1]?.monthKey
+    if (!lastMonthKey) return null
+    return addMonthsToMonthKey(lastMonthKey, 1)
+  }, [filteredData])
+
+  const chartData = React.useMemo(() => {
+    if (!forecastMonthKey || filteredData.length === 0) return filteredData
+
+    const recent = filteredData.slice(-11)
+    const createdForecast = forecastNextMonth(recent.map((row) => row.created))
+    const resolvedForecast = forecastNextMonth(recent.map((row) => row.resolved))
+    if (createdForecast == null || resolvedForecast == null) return filteredData
+
+    return [
+      ...filteredData,
+      {
+        monthKey: forecastMonthKey,
+        monthLabel: forecastMonthKey,
+        created: createdForecast,
+        resolved: resolvedForecast,
+        isForecast: true,
+      },
+    ]
+  }, [filteredData, forecastMonthKey])
 
   const showCreated = series === "both" || series === "created"
   const showResolved = series === "both" || series === "resolved"
@@ -148,7 +175,7 @@ export function TicketsOverTimeChart({
           >
             <BarChart
               accessibilityLayer
-              data={filteredData}
+              data={chartData}
               maxBarSize={20}
               margin={{ left: -12, right: 12, top: 12 }}
             >
@@ -176,7 +203,16 @@ export function TicketsOverTimeChart({
                 content={
                   <ChartTooltipContent
                     hideIndicator
-                    labelFormatter={(value) => getMonthLabelShort(String(value))}
+                    labelFormatter={(value, payload) => {
+                      const monthKey = String(value)
+                      const isForecast =
+                        Array.isArray(payload) &&
+                        payload.length > 0 &&
+                        isRecord(payload[0]?.payload) &&
+                        payload[0].payload.isForecast === true
+
+                      return `${getMonthLabelShort(monthKey)}${isForecast ? " (Forecast)" : ""}`
+                    }}
                     formatter={(value, name) => {
                       const meta =
                         name === "created"
@@ -206,15 +242,127 @@ export function TicketsOverTimeChart({
                 }
               />
               {showCreated ? (
-                <Bar dataKey="created" fill={`url(#${id}-gradient)`} stackId={stackId} />
+                <Bar
+                  dataKey="created"
+                  fill={`url(#${id}-gradient)`}
+                  stackId={stackId}
+                  shape={forecastBarShape}
+                />
               ) : null}
               {showResolved ? (
-                <Bar dataKey="resolved" fill="var(--color-resolved)" stackId={stackId} />
+                <Bar
+                  dataKey="resolved"
+                  fill="var(--color-resolved)"
+                  stackId={stackId}
+                  shape={forecastBarShape}
+                />
               ) : null}
             </BarChart>
           </ChartContainer>
         </CardContent>
       </Card>
     </CardGroup>
+  )
+}
+
+function addMonthsToMonthKey(monthKey: string, months: number) {
+  const [yearStr, monthStr] = monthKey.split("-")
+  const year = Number(yearStr)
+  const monthIndex = Number(monthStr) - 1
+  if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) return null
+
+  const total = year * 12 + monthIndex + months
+  const nextYear = Math.floor(total / 12)
+  const nextMonthIndex = total % 12
+  if (!Number.isInteger(nextYear) || !Number.isInteger(nextMonthIndex)) return null
+
+  return `${nextYear}-${String(nextMonthIndex + 1).padStart(2, "0")}`
+}
+
+function forecastNextMonth(values: number[]) {
+  const cleaned = values.filter((value) => Number.isFinite(value))
+  if (cleaned.length === 0) return null
+  if (cleaned.length === 1) return Math.max(0, Math.round(cleaned[0]!))
+  if (cleaned.length === 2) return Math.max(0, Math.round(cleaned[1]!))
+
+  const alphaCandidates = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  const betaCandidates = [0.1, 0.2, 0.3, 0.4, 0.5]
+
+  let bestSse = Number.POSITIVE_INFINITY
+  let bestForecast = cleaned[cleaned.length - 1]!
+
+  for (const alpha of alphaCandidates) {
+    for (const beta of betaCandidates) {
+      const result = holtLinearOneStep(cleaned, alpha, beta)
+      if (!result) continue
+      if (result.sse < bestSse) {
+        bestSse = result.sse
+        bestForecast = result.forecast
+      }
+    }
+  }
+
+  if (!Number.isFinite(bestForecast)) return null
+  return Math.max(0, Math.round(bestForecast))
+}
+
+function holtLinearOneStep(values: number[], alpha: number, beta: number) {
+  const n = values.length
+  if (n < 2) return null
+
+  let level = values[0]!
+  let trend = values[1]! - values[0]!
+  if (!Number.isFinite(level) || !Number.isFinite(trend)) return null
+
+  let sse = 0
+
+  for (let idx = 1; idx < n; idx += 1) {
+    const actual = values[idx]!
+    const predicted = level + trend
+    if (!Number.isFinite(actual) || !Number.isFinite(predicted)) return null
+
+    const error = actual - predicted
+    sse += error * error
+
+    const prevLevel = level
+    level = alpha * actual + (1 - alpha) * (level + trend)
+    trend = beta * (level - prevLevel) + (1 - beta) * trend
+
+    if (!Number.isFinite(level) || !Number.isFinite(trend)) return null
+  }
+
+  const forecast = level + trend
+  if (!Number.isFinite(forecast)) return null
+  return { forecast, sse }
+}
+
+function forecastBarShape(props: unknown): React.JSX.Element {
+  if (!isRecord(props)) return <></>
+
+  const x = isNumber(props.x) ? props.x : null
+  const y = isNumber(props.y) ? props.y : null
+  const width = isNumber(props.width) ? props.width : null
+  const height = isNumber(props.height) ? props.height : null
+  const fill = isString(props.fill) ? props.fill : "currentColor"
+  const payload = isRecord(props.payload) ? props.payload : null
+
+  if (x == null || y == null || width == null || height == null) return <></>
+
+  const isForecast = payload?.isForecast === true
+
+  return (
+    <rect
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      fill={fill}
+      fillOpacity={isForecast ? 0.35 : 1}
+      stroke={isForecast ? "var(--border)" : "none"}
+      strokeWidth={isForecast ? 1 : 0}
+      strokeDasharray={isForecast ? "4 3" : undefined}
+      rx={2}
+      ry={2}
+    />
   )
 }

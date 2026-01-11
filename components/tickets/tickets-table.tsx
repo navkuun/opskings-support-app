@@ -53,6 +53,15 @@ export type ClientTicketRow = {
   createdAt: string | null
 }
 
+type CursorPagination = {
+  mode: "cursor"
+  pageIndex: number
+  pageSize: number
+  hasNextPage: boolean
+  onNextPage: () => void
+  onPreviousPage: () => void
+}
+
 function formatLabel(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return value
@@ -200,18 +209,29 @@ const columns: ColumnDef<ClientTicketRow>[] = [
 export function TicketsTable({
   tickets,
   showClient = false,
+  pagination,
+  isLoading = false,
 }: {
   tickets: ClientTicketRow[]
   showClient?: boolean
+  pagination?: CursorPagination
+  isLoading?: boolean
 }) {
-  const pageSize = 10
-
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
-  const [pagination, setPagination] = React.useState<PaginationState>({
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: "createdAt", desc: true }])
+
+  const pageSize = pagination?.mode === "cursor" ? pagination.pageSize : 30
+  const enableClientPaging = pagination?.mode !== "cursor"
+
+  const [clientPagination, setClientPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize,
   })
-  const [sorting, setSorting] = React.useState<SortingState>([{ id: "createdAt", desc: true }])
+
+  React.useEffect(() => {
+    if (!enableClientPaging) return
+    setClientPagination({ pageIndex: 0, pageSize })
+  }, [enableClientPaging, pageSize])
 
   const tableColumns = React.useMemo(() => {
     if (showClient) return columns
@@ -233,35 +253,39 @@ export function TicketsTable({
     enableSortingRemoval: false,
     getRowId: (row) => String(row.id),
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    onPaginationChange: setPagination,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     state: {
-      pagination,
       rowSelection,
       sorting,
+      ...(enableClientPaging ? { pagination: clientPagination } : {}),
     },
+    ...(enableClientPaging
+      ? {
+          getPaginationRowModel: getPaginationRowModel(),
+          onPaginationChange: setClientPagination,
+        }
+      : {}),
   })
 
   const total = table.getRowCount()
-  const pageIndex = table.getState().pagination.pageIndex
-  const pageCount = table.getPageCount()
+  const pageIndex =
+    pagination?.mode === "cursor" ? pagination.pageIndex : table.getState().pagination.pageIndex
 
-  const pageRanges = React.useMemo(
-    () => {
-      if (total === 0) return [{ label: "0-0", value: "1" }]
+  const pageCount = enableClientPaging ? table.getPageCount() : null
 
-      return Array.from({ length: pageCount }, (_, i) => {
-        const rangeStart = i * pageSize + 1
-        const rangeEnd = Math.min((i + 1) * pageSize, total)
-        const pageNum = i + 1
-        return { label: `${rangeStart}-${rangeEnd}`, value: String(pageNum) }
-      })
-    },
-    [pageCount, pageSize, total],
-  )
+  const pageRanges = React.useMemo(() => {
+    if (!enableClientPaging || pageCount == null) return []
+    if (total === 0) return [{ label: "0-0", value: "1" }]
+
+    return Array.from({ length: pageCount }, (_, i) => {
+      const rangeStart = i * pageSize + 1
+      const rangeEnd = Math.min((i + 1) * pageSize, total)
+      const pageNum = i + 1
+      return { label: `${rangeStart}-${rangeEnd}`, value: String(pageNum) }
+    })
+  }, [enableClientPaging, pageCount, pageSize, total])
 
   return (
     <Frame className="w-full">
@@ -313,7 +337,16 @@ export function TicketsTable({
         </TableHeader>
 
         <TableBody>
-          {table.getRowModel().rows.length ? (
+          {isLoading && table.getRowModel().rows.length === 0 ? (
+            <TableRow>
+              <TableCell
+                className="h-24 text-center text-muted-foreground"
+                colSpan={tableColumns.length}
+              >
+                Loading tickets…
+              </TableCell>
+            </TableRow>
+          ) : table.getRowModel().rows.length ? (
             table.getRowModel().rows.map((row) => (
               <TableRow data-state={row.getIsSelected() ? "selected" : undefined} key={row.id}>
                 {row.getVisibleCells().map((cell) => (
@@ -336,32 +369,43 @@ export function TicketsTable({
       <FrameFooter className="p-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 whitespace-nowrap">
-            <p className="text-muted-foreground text-sm">Viewing</p>
-            <Select
-              items={pageRanges}
-              value={String(pageIndex + 1)}
-              onValueChange={(value) => {
-                const page = Number(value)
-                if (!Number.isFinite(page) || page < 1) return
-                table.setPageIndex(page - 1)
-              }}
-            >
-              <SelectTrigger aria-label="Select result range" className="w-fit" size="sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectGroup>
-                  {pageRanges.map((range) => (
-                    <SelectItem key={range.value} value={range.value}>
-                      {range.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-sm">
-              of <strong className="font-medium text-foreground">{total}</strong> results
-            </p>
+            {enableClientPaging ? (
+              <>
+                <p className="text-muted-foreground text-sm">Viewing</p>
+                <Select
+                  items={pageRanges}
+                  value={String(pageIndex + 1)}
+                  onValueChange={(value) => {
+                    const page = Number(value)
+                    if (!Number.isFinite(page) || page < 1) return
+                    table.setPageIndex(page - 1)
+                  }}
+                >
+                  <SelectTrigger aria-label="Select result range" className="w-fit" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    <SelectGroup>
+                      {pageRanges.map((range) => (
+                        <SelectItem key={range.value} value={range.value}>
+                          {range.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-sm">
+                  of <strong className="font-medium text-foreground">{total}</strong> results
+                </p>
+              </>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Showing{" "}
+                <strong className="font-medium text-foreground">
+                  {total ? pageIndex * pageSize + 1 : 0}-{total ? pageIndex * pageSize + tickets.length : 0}
+                </strong>
+              </p>
+            )}
           </div>
 
           <Pagination className="justify-end">
@@ -371,8 +415,14 @@ export function TicketsTable({
                   className="sm:*:[svg]:hidden"
                   render={
                     <Button
-                      disabled={!table.getCanPreviousPage()}
-                      onClick={() => table.previousPage()}
+                      disabled={enableClientPaging ? !table.getCanPreviousPage() : pageIndex <= 0}
+                      onClick={() => {
+                        if (enableClientPaging) {
+                          table.previousPage()
+                          return
+                        }
+                        pagination?.onPreviousPage()
+                      }}
                       size="sm"
                       variant="outline"
                     />
@@ -384,8 +434,18 @@ export function TicketsTable({
                   className="sm:*:[svg]:hidden"
                   render={
                     <Button
-                      disabled={!table.getCanNextPage()}
-                      onClick={() => table.nextPage()}
+                      disabled={
+                        enableClientPaging
+                          ? !table.getCanNextPage()
+                          : !(pagination?.mode === "cursor" && pagination.hasNextPage)
+                      }
+                      onClick={() => {
+                        if (enableClientPaging) {
+                          table.nextPage()
+                          return
+                        }
+                        pagination?.onNextPage()
+                      }}
                       size="sm"
                       variant="outline"
                     />
@@ -399,4 +459,3 @@ export function TicketsTable({
     </Frame>
   )
 }
-

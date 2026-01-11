@@ -9,7 +9,7 @@ import { clients } from "@/lib/db/schema/clients"
 import { teamMembers } from "@/lib/db/schema/team-members"
 
 type AllowlistMatch =
-  | { kind: "team_member"; teamMemberId: number }
+  | { kind: "team_member"; teamMemberId: number; department: string }
   | { kind: "client"; clientId: number }
   | null
 
@@ -25,18 +25,28 @@ export async function getAuthUserEmail(authUserId: string) {
   return authUserRows[0]?.email?.trim().toLowerCase() ?? null
 }
 
+function defaultInternalRoleForDepartment(department: string) {
+  const normalized = department.trim().toLowerCase()
+  if (normalized === "technical" || normalized === "finance") return "manager"
+  return "support_agent"
+}
+
 export async function getAllowlistMatchByEmail(email: string): Promise<AllowlistMatch> {
   const normalizedEmail = email.trim().toLowerCase()
   if (!normalizedEmail) return null
 
   const teamRows = await db
-    .select({ id: teamMembers.id })
+    .select({ id: teamMembers.id, department: teamMembers.department })
     .from(teamMembers)
     .where(sql`lower(${teamMembers.email}) = ${normalizedEmail}`)
     .limit(1)
 
   if (teamRows.length) {
-    return { kind: "team_member", teamMemberId: teamRows[0].id }
+    return {
+      kind: "team_member",
+      teamMemberId: teamRows[0].id,
+      department: teamRows[0].department,
+    }
   }
 
   const clientRows = await db
@@ -79,9 +89,14 @@ export async function syncAppUserFromAllowlist(authUserId: string) {
 
   if (allowlist?.kind === "team_member") {
     const desiredStatus = isDisabled ? "disabled" : "active"
+    const defaultRole = defaultInternalRoleForDepartment(allowlist.department)
     const desiredRole =
       desiredStatus === "active"
-        ? existing?.internalRole ?? "support_agent"
+        ? existing?.internalRole
+          ? defaultRole === "manager" && existing.internalRole === "support_agent"
+            ? "manager"
+            : existing.internalRole
+          : defaultRole
         : existing?.internalRole ?? null
 
     await db
