@@ -9,6 +9,18 @@ import { InputGroup, InputGroupInput } from "@/components/ui/input-group"
 import { authClient } from "@/lib/auth-client"
 import { isBoolean, isRecord } from "@/lib/type-guards"
 
+const DEMO_PASSWORD = "password123"
+const DEMO_USERS = {
+  internal: {
+    label: "Continue as internal",
+    email: "john.smith@company.com",
+  },
+  client: {
+    label: "Continue as client",
+    email: "admin@techstart.com",
+  },
+} as const
+
 type EmailStatusResponse = {
   ok: boolean
   allowlisted: boolean
@@ -45,6 +57,7 @@ function parseEmailStatusResponse(value: unknown): EmailStatusResponse | null {
 export function LoginForm() {
   const router = useRouter()
   const { data: session } = authClient.useSession()
+  const showDemoUsers = process.env.NODE_ENV !== "production"
 
   const [step, setStep] = React.useState<"email" | "password" | "setup-link">(
     "email",
@@ -66,6 +79,48 @@ export function LoginForm() {
     setNotice(null)
     setIsSubmitting(false)
   }, [])
+
+  const signInAsDemo = React.useCallback(
+    async (kind: keyof typeof DEMO_USERS) => {
+      const target = DEMO_USERS[kind]
+      const normalizedEmail = normalizeEmail(target.email)
+
+      setEmail(normalizedEmail)
+      setPassword(DEMO_PASSWORD)
+      setStep("password")
+      setError(null)
+      setNotice(null)
+      setIsSubmitting(true)
+
+      try {
+        const result = await authClient.signIn.email({
+          email: normalizedEmail,
+          password: DEMO_PASSWORD,
+          callbackURL: "/",
+        })
+
+        if (result.error) {
+          setError(
+            result.error.message ??
+              "Demo sign in failed. Run `pnpm db:seed` to create demo users.",
+          )
+          return
+        }
+
+        router.replace("/")
+        router.refresh()
+      } catch (e) {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Demo sign in failed. Run `pnpm db:seed` to create demo users.",
+        )
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [router],
+  )
 
   const requestPasswordLink = React.useCallback(async () => {
     const normalizedEmail = normalizeEmail(email)
@@ -200,157 +255,194 @@ export function LoginForm() {
   )
 
   return (
-    <div className="mx-auto w-full max-w-sm">
-      <div className="border-border bg-background/80 relative border border-dashed px-5 py-6 text-sm backdrop-blur-sm">
-        <span className="pointer-events-none absolute top-[-1.5px] left-[-1.5px] h-[2px] w-4 bg-primary" />
-        <span className="pointer-events-none absolute top-[-1.5px] left-[-1.5px] h-4 w-[2px] bg-primary" />
-        <span className="pointer-events-none absolute top-[-1.5px] right-[-1.5px] h-[2px] w-4 bg-primary" />
-        <span className="pointer-events-none absolute top-[-1.5px] right-[-1.5px] h-4 w-[2px] bg-primary" />
-        <span className="pointer-events-none absolute bottom-[-1.5px] left-[-1.5px] h-[2px] w-4 bg-primary" />
-        <span className="pointer-events-none absolute bottom-[-1.5px] left-[-1.5px] h-4 w-[2px] bg-primary" />
-        <span className="pointer-events-none absolute right-[-1.5px] bottom-[-1.5px] h-[2px] w-4 bg-primary" />
-        <span className="pointer-events-none absolute right-[-1.5px] bottom-[-1.5px] h-4 w-[2px] bg-primary" />
+    <div
+      className={`mx-auto w-full ${showDemoUsers ? "max-w-3xl" : "max-w-sm"}`}
+    >
+      <div
+        className={`grid gap-6 ${showDemoUsers ? "md:grid-cols-2 md:items-start" : ""}`}
+      >
+        <div className="border-border bg-background/80 relative border border-dashed px-5 py-6 text-sm backdrop-blur-sm">
+          <span className="pointer-events-none absolute top-[-1.5px] left-[-1.5px] h-[2px] w-4 bg-primary" />
+          <span className="pointer-events-none absolute top-[-1.5px] left-[-1.5px] h-4 w-[2px] bg-primary" />
+          <span className="pointer-events-none absolute top-[-1.5px] right-[-1.5px] h-[2px] w-4 bg-primary" />
+          <span className="pointer-events-none absolute top-[-1.5px] right-[-1.5px] h-4 w-[2px] bg-primary" />
+          <span className="pointer-events-none absolute bottom-[-1.5px] left-[-1.5px] h-[2px] w-4 bg-primary" />
+          <span className="pointer-events-none absolute bottom-[-1.5px] left-[-1.5px] h-4 w-[2px] bg-primary" />
+          <span className="pointer-events-none absolute right-[-1.5px] bottom-[-1.5px] h-[2px] w-4 bg-primary" />
+          <span className="pointer-events-none absolute right-[-1.5px] bottom-[-1.5px] h-4 w-[2px] bg-primary" />
 
-        <div className="space-y-4">
-          <div className="flex justify-center pt-1">
-            <Image
-              src="/logo.webp"
-              alt="OpsKings"
-              width={44}
-              height={44}
-              priority
-              className="rounded-sm"
-            />
-          </div>
-
-          <div className="flex-col items-center justify-center">
-            <h1 className="text-xl text-center font-semibold text-zinc-900 dark:text-zinc-100">
-              Welcome To OpsKings
-            </h1>
-          </div>
-
-          <form onSubmit={onContinue} className="space-y-3">
-            <InputGroup>
-              <InputGroupInput
-                id="email"
-                name="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                required
-                disabled={isSubmitting || step !== "email"}
+          <div className="space-y-4">
+            <div className="flex justify-center pt-1">
+              <Image
+                src="/logo.webp"
+                alt="OpsKings"
+                width={44}
+                height={44}
+                priority
+                className="rounded-sm"
               />
-            </InputGroup>
+            </div>
 
-            {error ? (
-              <div className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-                {error}
-              </div>
-            ) : null}
+            <div className="flex-col items-center justify-center">
+              <h1 className="text-xl text-center font-semibold text-zinc-900 dark:text-zinc-100">
+                Welcome To OpsKings
+              </h1>
+            </div>
 
-            {notice ? (
-              <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
-                {notice}
-              </div>
-            ) : null}
-
-            {step === "email" ? (
-              <Button type="submit"  className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Working…" : "Continue"}
-              </Button>
-            ) : null}
-          </form>
-
-          {step === "password" ? (
-            <form onSubmit={onSignInWithPassword} className="space-y-3">
+            <form onSubmit={onContinue} className="space-y-3">
               <InputGroup>
                 <InputGroupInput
-                  id="password"
-                  name="password"
-                  placeholder="Password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
+                  id="email"
+                  name="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || step !== "email"}
                 />
               </InputGroup>
 
-              <div className="grid gap-2">
+              {error ? (
+                <div className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                  {error}
+                </div>
+              ) : null}
+
+              {notice ? (
+                <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+                  {notice}
+                </div>
+              ) : null}
+
+              {step === "email" ? (
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? "Working…" : "Sign in"}
+                  {isSubmitting ? "Working…" : "Continue"}
                 </Button>
-                <div className="flex items-center justify-between gap-2">
-               
-              <div className="text-center">
-              <Button
-                type="button"
-                variant="link"
-                className="text-zinc-600 px-0"
-                size="sm"
-                onClick={resetFlow}
-                disabled={isSubmitting}
-              >
-                Go Back
-              </Button>
-              </div>
-               <Button
+              ) : null}
+            </form>
+
+            {step === "password" ? (
+              <form onSubmit={onSignInWithPassword} className="space-y-3">
+                <InputGroup>
+                  <InputGroupInput
+                    id="password"
+                    name="password"
+                    placeholder="Password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </InputGroup>
+
+                <div className="grid gap-2">
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? "Working…" : "Sign in"}
+                  </Button>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-center">
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="text-zinc-600 px-0"
+                        size="sm"
+                        onClick={resetFlow}
+                        disabled={isSubmitting}
+                      >
+                        Go Back
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="text-zinc-600 px-0"
+                      onClick={requestPasswordLink}
+                      disabled={isSubmitting || !normalizeEmail(email)}
+                    >
+                      Reset Password
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            ) : null}
+
+            {step === "setup-link" ? (
+              <div className="space-y-3 pt-2">
+                <div className="rounded border border-zinc-200 bg-white p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-black dark:text-zinc-200">
+                  No account exists for this email yet. Click below to get a password
+                  link and create your account.
+                </div>
+
+                <Button
                   type="button"
-                  variant="link"
-                  className="text-zinc-600 px-0"
+                  className="w-full"
                   onClick={requestPasswordLink}
                   disabled={isSubmitting || !normalizeEmail(email)}
                 >
-                  Reset Password
+                  {isSubmitting ? "Working…" : "Send password link"}
                 </Button>
               </div>
-              </div>
-            </form>
-          ) : null}
+            ) : null}
 
-          {step === "setup-link" ? (
-            <div className="space-y-3 pt-2">
-              <div className="rounded border border-zinc-200 bg-white p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-black dark:text-zinc-200">
-                No account exists for this email yet. Click below to get a password
-                link and create your account.
-              </div>
+            <div className=" bg-white text-sm text-zinc-500 dark:border-zinc-800 bg-transparent dark:bg-transparent dark:text-zinc-200">
+              <p className="font-medium">
+                This OpsKings website (www.OpsKings.com) is by invitation only.
+              </p>
 
-              <Button
-                type="button"
-                className="w-full"
-                onClick={requestPasswordLink}
-                disabled={isSubmitting || !normalizeEmail(email)}
-              >
-                {isSubmitting ? "Working…" : "Send password link"}
-              </Button>
+              <ul className="mt-3 list-disc space-y-2 pl-5">
+                <li>
+                  If you have received an invitation, you must first create a login
+                  by following the link provided in the email sent to you.
+                </li>
+                <li>
+                  If you have not received an invitation, and think you should have,
+                  please contact your OpsKings representative.
+                </li>
+              </ul>
             </div>
-          ) : null}
-
-          <div className=" bg-white text-sm text-zinc-500 dark:border-zinc-800 bg-transparent dark:bg-transparent dark:text-zinc-200">
-            <p className="font-medium">
-              This OpsKings website (www.OpsKings.com) is by invitation only.
-            </p>
-
-            <ul className="mt-3 list-disc space-y-2 pl-5">
-              <li>
-                If you have received an invitation, you must first create a login by
-                following the link provided in the email sent to you.
-              </li>
-              <li>
-                If you have not received an invitation, and think you should have,
-                please contact your OpsKings representative.
-              </li>
-            </ul>
-
           </div>
         </div>
+
+        {showDemoUsers ? (
+          <div className="border-border bg-background/80 relative border border-dashed px-5 py-6 text-sm backdrop-blur-sm">
+            <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Demo users
+            </div>
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+              Use the buttons below to sign in as a demo internal team member or
+              client user.<br />
+            </p>
+            <div className="mt-3 grid gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() => signInAsDemo("internal")}
+                disabled={isSubmitting}
+              >
+                <span>{DEMO_USERS.internal.label}</span>
+                
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() => signInAsDemo("client")}
+                disabled={isSubmitting}
+              >
+                <span>{DEMO_USERS.client.label}</span>
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )

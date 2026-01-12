@@ -18,9 +18,11 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Kbd } from "@/components/ui/kbd"
+import { toastManager } from "@/components/ui/toast"
 import {
   Select,
   SelectContent,
@@ -251,6 +253,7 @@ export function TicketDetailsPageClient({
   const [feedbackText, setFeedbackText] = React.useState("")
   const [submittingFeedback, setSubmittingFeedback] = React.useState(false)
   const [feedbackError, setFeedbackError] = React.useState<string | null>(null)
+  const [isEditingFeedback, setIsEditingFeedback] = React.useState(false)
 
   React.useEffect(() => {
     const existingRating = parseRating(isRecord(feedback) ? feedback.rating : null)
@@ -288,12 +291,34 @@ export function TicketDetailsPageClient({
           feedbackText: feedbackText.trim() ? feedbackText.trim() : undefined,
         }),
       )
+
+      toastManager.add({
+        title: feedback ? "Feedback updated" : "Feedback submitted",
+        description: "Thanks for the feedback.",
+        type: "success",
+      })
+      setIsEditingFeedback(false)
     } catch (caught) {
       setFeedbackError(caught instanceof Error ? caught.message : "Failed to submit feedback.")
     } finally {
       setSubmittingFeedback(false)
     }
-  }, [feedbackText, isClient, rating, submittingFeedback, ticket, ticketId, z])
+  }, [feedback, feedbackText, isClient, rating, submittingFeedback, ticket, ticketId, z])
+
+  const cancelFeedbackEdit = React.useCallback(() => {
+    const existingRating = parseRating(isRecord(feedback) ? feedback.rating : null)
+    setRating(existingRating ?? 5)
+    const existingText =
+      isRecord(feedback) && isString(feedback.feedbackText) ? feedback.feedbackText : ""
+    setFeedbackText(existingText)
+    setFeedbackError(null)
+    setIsEditingFeedback(false)
+  }, [feedback])
+
+  const hasSubmittedFeedback = feedbackResult.type === "complete" && Boolean(feedback)
+  const submittedRating = parseRating(isRecord(feedback) ? feedback.rating : null) ?? 5
+  const submittedFeedbackText =
+    isRecord(feedback) && isString(feedback.feedbackText) ? feedback.feedbackText : ""
 
   const ticketTitle = ticket ? ticket.title : `Ticket #${ticketId}`
 
@@ -502,32 +527,34 @@ export function TicketDetailsPageClient({
                   ) : commentMessages.length === 0 ? (
                     <div className="text-muted-foreground text-sm">No messages yet.</div>
                   ) : (
-                    <div className="space-y-8">
-                      {commentMessages.map((msg) => {
-                        const author = getMessageAuthor(msg)
-                        const initial = author.trim() ? author.trim()[0]!.toUpperCase() : "?"
-                        return (
-                          <div key={msg.id} className="flex gap-3">
-                            <div
-                              className="mt-0.5 flex size-8 items-center justify-center rounded-full border bg-muted/10 text-xs font-semibold text-muted-foreground"
-                              aria-hidden="true"
-                            >
-                              {initial}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="text-[13px] font-semibold text-foreground/90">{author}</div>
-                                <div className="text-muted-foreground text-xs tabular-nums">
-                                  {formatTimestamp(msg.createdAt ?? null)}
+                    <div className="max-h-[420px] overflow-y-auto pr-2">
+                      <div className="space-y-8">
+                        {commentMessages.map((msg) => {
+                          const author = getMessageAuthor(msg)
+                          const initial = author.trim() ? author.trim()[0]!.toUpperCase() : "?"
+                          return (
+                            <div key={msg.id} className="flex gap-3">
+                              <div
+                                className="mt-0.5 flex size-8 items-center justify-center rounded-full border bg-muted/10 text-xs font-semibold text-muted-foreground"
+                                aria-hidden="true"
+                              >
+                                {initial}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-[13px] font-semibold text-foreground/90">{author}</div>
+                                  <div className="text-muted-foreground text-xs tabular-nums">
+                                    {formatTimestamp(msg.createdAt ?? null)}
+                                  </div>
+                                </div>
+                                <div className="mt-2 whitespace-pre-wrap text-[15px] leading-[1.6] text-foreground/90">
+                                  {msg.messageText}
                                 </div>
                               </div>
-                              <div className="mt-2 whitespace-pre-wrap text-[15px] leading-[1.6] text-foreground/90">
-                                {msg.messageText}
-                              </div>
                             </div>
-                          </div>
-                        )
-                      })}
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -562,47 +589,101 @@ export function TicketDetailsPageClient({
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div className="text-sm font-semibold">Feedback</div>
                       <div className="text-muted-foreground text-xs">
-                        {feedbackResult.type === "complete" && feedback ? "Submitted" : "Not submitted"}
+                        {feedbackResult.type !== "complete"
+                          ? "Loading…"
+                          : hasSubmittedFeedback
+                            ? "Submitted"
+                            : "Not submitted"}
                       </div>
                     </div>
 
                     {isClient ? (
-                      <>
-                        <div className="flex items-center gap-1">
-                          {([1, 2, 3, 4, 5] as const).map((value) => (
-                            <button
-                              key={value}
-                              type="button"
-                              className={cn(
-                                "inline-flex size-9 items-center justify-center rounded-md border transition-colors",
-                                value <= rating
-                                  ? "border-amber-400/40 bg-amber-400/10 text-amber-500"
-                                  : "border-border bg-background text-muted-foreground hover:bg-muted/40",
-                              )}
-                              aria-label={`${value} star`}
-                              onClick={() => setRating(value)}
-                            >
-                              <StarIcon className="size-4" aria-hidden="true" />
-                            </button>
-                          ))}
-                          <span className="text-muted-foreground ml-2 text-xs">{rating}/5</span>
-                        </div>
+                      hasSubmittedFeedback && !isEditingFeedback ? (
+                        <Card size="sm">
+                          <CardHeader className="border-b border-border/40">
+                            <CardTitle>Your feedback</CardTitle>
+                            <CardAction>
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() => setIsEditingFeedback(true)}
+                                disabled={submittingFeedback}
+                              >
+                                Edit
+                              </Button>
+                            </CardAction>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="flex items-center gap-1 text-foreground">
+                              {([1, 2, 3, 4, 5] as const).map((value) => (
+                                <StarIcon
+                                  key={value}
+                                  weight={value <= submittedRating ? "fill" : "regular"}
+                                  className="size-5"
+                                  aria-hidden="true"
+                                />
+                              ))}
+                              <span className="text-muted-foreground ml-2 text-xs">{submittedRating}/5</span>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {submittedFeedbackText.trim() ? submittedFeedbackText : "No written feedback."}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1 mb-3">
+                            {([1, 2, 3, 4, 5] as const).map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                className={cn(
+                                  "inline-flex size-8 items-center justify-center rounded-md text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
+                                  submittingFeedback ? "pointer-events-none opacity-60" : "",
+                                )}
+                                aria-label={`${value} star`}
+                                onClick={() => setRating(value)}
+                              >
+                                <StarIcon
+                                  weight={value <= rating ? "fill" : "regular"}
+                                  className="size-5"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                            ))}
+                            <span className="text-muted-foreground ml-2 text-xs">{rating}/5</span>
+                          </div>
 
-                        <Input
-                          value={feedbackText}
-                          onChange={(e) => setFeedbackText(e.target.value)}
-                          placeholder="Optional feedback…"
-                          disabled={submittingFeedback}
-                        />
+                          <Input
+                            value={feedbackText}
+                            onChange={(e) => setFeedbackText(e.target.value)}
+                            placeholder="Optional feedback…"
+                            disabled={submittingFeedback}
+                          />
 
-                        {feedbackError ? <div className="mt-2 text-destructive text-xs">{feedbackError}</div> : null}
+                          {feedbackError ? <div className="mt-2 text-destructive text-xs">{feedbackError}</div> : null}
 
-                        <div className="mt-3 flex items-center justify-end">
-                          <Button onClick={() => void submitFeedback()} disabled={submittingFeedback}>
-                            {submittingFeedback ? "Submitting…" : feedback ? "Update feedback" : "Submit feedback"}
-                          </Button>
-                        </div>
-                      </>
+                          <div className="mt-3 flex items-center justify-end gap-2">
+                            {hasSubmittedFeedback ? (
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() => cancelFeedbackEdit()}
+                                disabled={submittingFeedback}
+                              >
+                                Cancel
+                              </Button>
+                            ) : null}
+                            <Button onClick={() => void submitFeedback()} disabled={submittingFeedback}>
+                              {submittingFeedback
+                                ? "Submitting…"
+                                : hasSubmittedFeedback
+                                  ? "Update feedback"
+                                  : "Submit feedback"}
+                            </Button>
+                          </div>
+                        </>
+                      )
                     ) : (
                       <div className="text-sm">
                         {feedback ? (

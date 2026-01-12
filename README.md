@@ -58,6 +58,12 @@ RESEND_FROM="OpsKings Support <auth@yourdomain.com>"
 pnpm db:migrate
 ```
 
+Generate Zero schema
+
+```bash
+pnpm generate 
+```
+
 Optional seed for local demo data:
 
 ```bash
@@ -185,6 +191,8 @@ Rough trade-off summary:
 - AI “ticket brief”: summarization + suggested next actions/SOP lookup for agents.
 - Analytics scalability: rollups/materialized views for time-series metrics and SLA histograms at higher scale.
 - Defense-in-depth auth: add DB-level Postgres RLS and keep Zero permissions as an additional layer.
+- Modularize components further
+- Improve API file structure
 
 ## Multi-tenant access (“RLS” semantics)
 
