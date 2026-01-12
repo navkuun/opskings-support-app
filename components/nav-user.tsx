@@ -25,6 +25,7 @@ import {
 import { authClient } from "@/lib/auth-client"
 import { Badge } from "@/components/ui/badge"
 import { isRecord } from "@/lib/type-guards"
+import { formatTeamMemberLabel } from "@/lib/dashboard/utils"
 
 function getInitials(value: string) {
   const trimmed = value.trim()
@@ -42,24 +43,6 @@ function formatRole(value: string) {
     .split(/\s+/)
     .filter(Boolean)
     .map((word) => word[0]?.toUpperCase() + word.slice(1))
-    .join(" ")
-}
-
-function formatName(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) return ""
-
-  return trimmed
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => {
-      const letters = word.replace(/[^A-Za-z]/g, "")
-      const isAllUpper = letters !== "" && letters === letters.toUpperCase()
-      const isAllLower = letters !== "" && letters === letters.toLowerCase()
-      const rest = isAllUpper || isAllLower ? word.slice(1).toLowerCase() : word.slice(1)
-
-      return word[0]!.toUpperCase() + rest
-    })
     .join(" ")
 }
 
@@ -101,7 +84,9 @@ export function NavUser({
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const [role, setRole] = React.useState<string | null>(null)
 
-  const displayName = user.name ? formatName(user.name) || "User" : "User"
+  const displayName = user.name
+    ? formatTeamMemberLabel(user.name).trim() || "User"
+    : "User"
   const initials = getInitials(displayName || user.email)
 
   React.useEffect(() => {
