@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -17,17 +18,19 @@ export default async function AppLayout({
     headers: await headers(),
   })
 
-  const authUserId = session?.user?.id ?? null
+  if (!session?.user?.id) {
+    redirect("/")
+  }
+
+  const authUserId = session.user.id
   const userType =
-    authUserId
-      ? (
-          await db
-            .select({ userType: appUsers.userType })
-            .from(appUsers)
-            .where(eq(appUsers.authUserId, authUserId))
-            .limit(1)
-        )[0]?.userType ?? null
-      : null
+    (
+      await db
+        .select({ userType: appUsers.userType })
+        .from(appUsers)
+        .where(eq(appUsers.authUserId, authUserId))
+        .limit(1)
+    )[0]?.userType ?? null
 
   return (
     <SidebarProvider
