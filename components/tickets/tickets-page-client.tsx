@@ -200,6 +200,7 @@ export function TicketsPageClient({
 
     return defaultDepartment ?? "all"
   }, [defaultDepartment, deptParam, teamMemberId, teamMembersResult.type, userType])
+  const departmentUi = department ?? "all"
 
   const departmentOptions = React.useMemo(() => {
     const values = ticketTypes
@@ -672,7 +673,7 @@ export function TicketsPageClient({
         from={from}
         to={to}
         search={searchInput}
-        department={department}
+        department={departmentUi}
         departmentOptions={departmentOptions}
         clientFilter={{ op: clientOp, values: clientValues }}
         statusFilter={{ op: statusOp, values: statusValues }}
