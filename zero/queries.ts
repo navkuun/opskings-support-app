@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import type { ZeroContext } from "./context"
 import { zql } from "./schema"
+import { defaultListFilterOperator, listFilterOperatorValues } from "@/lib/filters/list-filter"
 
 function isInternal(ctx: ZeroContext | undefined) {
   return ctx?.userType === "internal"
@@ -105,10 +106,15 @@ export const queries = defineQueries({
         to: z.number().optional(),
         department: z.string().min(1).max(50).optional(),
         clientId: z.array(z.number().int().positive()).optional(),
+        clientIdOp: z.enum(listFilterOperatorValues).optional(),
         status: z.array(z.string().min(1).max(50)).optional(),
+        statusOp: z.enum(listFilterOperatorValues).optional(),
         priority: z.array(z.string().min(1).max(20)).optional(),
+        priorityOp: z.enum(listFilterOperatorValues).optional(),
         ticketTypeId: z.array(z.number().int().positive()).optional(),
+        ticketTypeIdOp: z.enum(listFilterOperatorValues).optional(),
         assignedTo: z.array(z.number().int().positive()).optional(),
+        assignedToOp: z.enum(listFilterOperatorValues).optional(),
         includeUnassigned: z.boolean().optional(),
         search: z.string().min(1).max(255).optional(),
       }),
@@ -120,10 +126,15 @@ export const queries = defineQueries({
           to,
           department,
           clientId,
+          clientIdOp,
           status,
+          statusOp,
           priority,
+          priorityOp,
           ticketTypeId,
+          ticketTypeIdOp,
           assignedTo,
+          assignedToOp,
           includeUnassigned,
           search,
         },
@@ -152,29 +163,54 @@ export const queries = defineQueries({
         }
 
         if (clientId && clientId.length) {
-          q = q.where("clientId", "IN", clientId)
+          const op = clientIdOp ?? defaultListFilterOperator
+          const isExclude = op === "is_not" || op === "is_none_of"
+          q = isExclude ? q.where("clientId", "NOT IN", clientId) : q.where("clientId", "IN", clientId)
         }
 
         if (status && status.length) {
-          q = q.where("status", "IN", status)
+          const op = statusOp ?? defaultListFilterOperator
+          const isExclude = op === "is_not" || op === "is_none_of"
+          q = isExclude
+            ? q.where(({ cmp, or }) => or(cmp("status", "IS", null), cmp("status", "NOT IN", status)))
+            : q.where("status", "IN", status)
         }
 
         if (priority && priority.length) {
-          q = q.where("priority", "IN", priority)
+          const op = priorityOp ?? defaultListFilterOperator
+          const isExclude = op === "is_not" || op === "is_none_of"
+          q = isExclude
+            ? q.where(({ cmp, or }) => or(cmp("priority", "IS", null), cmp("priority", "NOT IN", priority)))
+            : q.where("priority", "IN", priority)
         }
 
         if (ticketTypeId && ticketTypeId.length) {
-          q = q.where("ticketTypeId", "IN", ticketTypeId)
+          const op = ticketTypeIdOp ?? defaultListFilterOperator
+          const isExclude = op === "is_not" || op === "is_none_of"
+          q = isExclude ? q.where("ticketTypeId", "NOT IN", ticketTypeId) : q.where("ticketTypeId", "IN", ticketTypeId)
         }
 
-        if (assignedTo && assignedTo.length && includeUnassigned) {
+        const assignedOp = assignedToOp ?? defaultListFilterOperator
+        const assignedExclude = assignedOp === "is_not" || assignedOp === "is_none_of"
+
+        if (assignedTo && assignedTo.length && includeUnassigned && !assignedExclude) {
           q = q.where(({ cmp, or }) =>
             or(cmp("assignedTo", "IN", assignedTo), cmp("assignedTo", "IS", null)),
           )
-        } else if (assignedTo && assignedTo.length) {
+        } else if (assignedTo && assignedTo.length && !assignedExclude) {
           q = q.where("assignedTo", "IN", assignedTo)
-        } else if (includeUnassigned) {
+        } else if (includeUnassigned && !assignedExclude) {
           q = q.where("assignedTo", "IS", null)
+        } else if (assignedTo && assignedTo.length && includeUnassigned && assignedExclude) {
+          q = q.where(({ and, cmp }) =>
+            and(cmp("assignedTo", "IS NOT", null), cmp("assignedTo", "NOT IN", assignedTo)),
+          )
+        } else if (includeUnassigned && assignedExclude) {
+          q = q.where("assignedTo", "IS NOT", null)
+        } else if (assignedTo && assignedTo.length && assignedExclude) {
+          q = q.where(({ cmp, or }) =>
+            or(cmp("assignedTo", "IS", null), cmp("assignedTo", "NOT IN", assignedTo)),
+          )
         }
 
         if (search) {

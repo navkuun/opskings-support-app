@@ -23,6 +23,12 @@ import {
   parseDateToUtcMs,
   percentChange,
 } from "@/lib/dashboard/utils"
+import {
+  defaultListFilterOperator,
+  normalizeListFilterValues,
+  type ListFilterState,
+  parseListFilterOperator,
+} from "@/lib/filters/list-filter"
 import { isRecord, isString } from "@/lib/type-guards"
 import { queries } from "@/zero/queries"
 
@@ -68,15 +74,37 @@ export function DashboardClient() {
   const from = searchParams.get("from") ?? DEFAULT_FROM
   const to = searchParams.get("to") ?? DEFAULT_TO
   const assignedToParam = searchParams.get("assignedTo")
+  const assignedToOpParam = searchParams.get("assignedToOp")
   const ticketTypeParam = searchParams.get("ticketTypeId")
+  const ticketTypeOpParam = searchParams.get("ticketTypeIdOp")
   const priorityParam = searchParams.get("priority")
+  const priorityOpParam = searchParams.get("priorityOp")
 
   const createdFrom = React.useMemo(() => parseDateToUtcMs(from, "start"), [from])
   const createdTo = React.useMemo(() => parseDateToUtcMs(to, "end"), [to])
 
-  const assignedToValues = React.useMemo(() => parseMultiParam(assignedToParam), [assignedToParam])
-  const ticketTypeValues = React.useMemo(() => parseMultiParam(ticketTypeParam), [ticketTypeParam])
-  const priorityValues = React.useMemo(() => parseMultiParam(priorityParam), [priorityParam])
+  const assignedToOp = React.useMemo(
+    () => parseListFilterOperator(assignedToOpParam),
+    [assignedToOpParam],
+  )
+  const ticketTypeOp = React.useMemo(
+    () => parseListFilterOperator(ticketTypeOpParam),
+    [ticketTypeOpParam],
+  )
+  const priorityOp = React.useMemo(() => parseListFilterOperator(priorityOpParam), [priorityOpParam])
+
+  const assignedToValues = React.useMemo(
+    () => normalizeListFilterValues(assignedToOp, parseMultiParam(assignedToParam)),
+    [assignedToOp, assignedToParam],
+  )
+  const ticketTypeValues = React.useMemo(
+    () => normalizeListFilterValues(ticketTypeOp, parseMultiParam(ticketTypeParam)),
+    [ticketTypeOp, ticketTypeParam],
+  )
+  const priorityValues = React.useMemo(
+    () => normalizeListFilterValues(priorityOp, parseMultiParam(priorityParam)),
+    [priorityOp, priorityParam],
+  )
 
   const [ticketTypes, ticketTypesResult] = useQuery(queries.ticketTypes.list({ limit: 200 }))
   const [teamMembers, teamMembersResult] = useQuery(queries.teamMembers.list({ limit: 200 }))
@@ -104,11 +132,20 @@ export function DashboardClient() {
       if (assignedToParam && assignedToParam !== "any") {
         params.set("assignedTo", assignedToParam)
       }
+      if (assignedToOpParam) {
+        params.set("assignedToOp", assignedToOpParam)
+      }
       if (ticketTypeParam && ticketTypeParam !== "any") {
         params.set("ticketTypeId", ticketTypeParam)
       }
+      if (ticketTypeOpParam) {
+        params.set("ticketTypeIdOp", ticketTypeOpParam)
+      }
       if (priorityParam && priorityParam !== "any") {
         params.set("priority", priorityParam)
+      }
+      if (priorityOpParam) {
+        params.set("priorityOp", priorityOpParam)
       }
 
       try {
@@ -148,7 +185,16 @@ export function DashboardClient() {
 
     void run()
     return () => controller.abort()
-  }, [assignedToParam, from, priorityParam, ticketTypeParam, to])
+  }, [
+    assignedToOpParam,
+    assignedToParam,
+    from,
+    priorityOpParam,
+    priorityParam,
+    ticketTypeOpParam,
+    ticketTypeParam,
+    to,
+  ])
 
   const months = React.useMemo(() => {
     const fallbackFrom = parseDateToUtcMs(DEFAULT_FROM, "start") ?? Date.UTC(2025, 0, 1)
@@ -248,57 +294,33 @@ export function DashboardClient() {
   )
 
   const handleAssignedToChange = React.useCallback(
-    (next: string[]) => {
-      if (next.includes("any")) {
-        updateSearchParams(router, searchParams, { assignedTo: null })
-        return
-      }
-
-      const filtered = next
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .filter((value) => value !== "any")
-
+    (next: ListFilterState) => {
+      const values = normalizeListFilterValues(next.op, next.values).filter((value) => value !== "any")
       updateSearchParams(router, searchParams, {
-        assignedTo: filtered.length ? filtered.join(",") : null,
+        assignedTo: values.length ? values.join(",") : null,
+        assignedToOp: next.op === defaultListFilterOperator ? null : next.op,
       })
     },
     [router, searchParams],
   )
 
   const handleTicketTypeChange = React.useCallback(
-    (next: string[]) => {
-      if (next.includes("any")) {
-        updateSearchParams(router, searchParams, { ticketTypeId: null })
-        return
-      }
-
-      const filtered = next
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .filter((value) => value !== "any")
-
+    (next: ListFilterState) => {
+      const values = normalizeListFilterValues(next.op, next.values).filter((value) => value !== "any")
       updateSearchParams(router, searchParams, {
-        ticketTypeId: filtered.length ? filtered.join(",") : null,
+        ticketTypeId: values.length ? values.join(",") : null,
+        ticketTypeIdOp: next.op === defaultListFilterOperator ? null : next.op,
       })
     },
     [router, searchParams],
   )
 
   const handlePriorityChange = React.useCallback(
-    (next: string[]) => {
-      if (next.includes("any")) {
-        updateSearchParams(router, searchParams, { priority: null })
-        return
-      }
-
-      const filtered = next
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .filter((value) => value !== "any")
-
+    (next: ListFilterState) => {
+      const values = normalizeListFilterValues(next.op, next.values).filter((value) => value !== "any")
       updateSearchParams(router, searchParams, {
-        priority: filtered.length ? filtered.join(",") : null,
+        priority: values.length ? values.join(",") : null,
+        priorityOp: next.op === defaultListFilterOperator ? null : next.op,
       })
     },
     [router, searchParams],
@@ -309,8 +331,11 @@ export function DashboardClient() {
       from: DEFAULT_FROM,
       to: DEFAULT_TO,
       assignedTo: null,
+      assignedToOp: null,
       ticketTypeId: null,
+      ticketTypeIdOp: null,
       priority: null,
+      priorityOp: null,
     })
   }, [router, searchParams])
 
@@ -319,9 +344,9 @@ export function DashboardClient() {
       <DashboardFilterRow
         from={from}
         to={to}
-        assignedToValues={assignedToValues}
-        ticketTypeValues={ticketTypeValues}
-        priorityValues={priorityValues}
+        assignedToFilter={{ op: assignedToOp, values: assignedToValues }}
+        ticketTypeFilter={{ op: ticketTypeOp, values: ticketTypeValues }}
+        priorityFilter={{ op: priorityOp, values: priorityValues }}
         teamMembers={teamMembers}
         ticketTypes={ticketTypes}
         onFromChange={handleFromChange}
@@ -387,4 +412,3 @@ export function DashboardClient() {
     </div>
   )
 }
-

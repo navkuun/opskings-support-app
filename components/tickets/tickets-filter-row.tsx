@@ -5,7 +5,10 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react"
 
 import { DatePickerSegment } from "@/components/filters/date-picker-segment"
 import { MultiSelectCombobox } from "@/components/filters/multi-select-combobox"
-import { MultiSelectDropdown } from "@/components/filters/multi-select-dropdown"
+import {
+  normalizeListFilterValues,
+  type ListFilterState,
+} from "@/lib/filters/list-filter"
 import { priorityOptions } from "@/lib/filters/priority-options"
 import type { FilterOption } from "@/lib/filters/types"
 import { Button } from "@/components/ui/button"
@@ -44,7 +47,6 @@ type ClientRow = {
 }
 
 const statusOptions = [
-  { value: "any", label: "Any" },
   { value: "open", label: "Open" },
   { value: "in_progress", label: "In progress" },
   { value: "blocked", label: "Blocked" },
@@ -76,11 +78,11 @@ export function TicketsFilterRow({
   search,
   department,
   departmentOptions,
-  clientValues,
-  statusValues,
-  priorityValues,
-  ticketTypeValues,
-  assignedToValues,
+  clientFilter,
+  statusFilter,
+  priorityFilter,
+  ticketTypeFilter,
+  assignedToFilter,
   ticketTypes,
   teamMembers,
   clients,
@@ -103,11 +105,11 @@ export function TicketsFilterRow({
   search: string
   department: string
   departmentOptions: readonly string[]
-  clientValues: string[]
-  statusValues: string[]
-  priorityValues: string[]
-  ticketTypeValues: string[]
-  assignedToValues: string[]
+  clientFilter: ListFilterState
+  statusFilter: ListFilterState
+  priorityFilter: ListFilterState
+  ticketTypeFilter: ListFilterState
+  assignedToFilter: ListFilterState
   ticketTypes: readonly TicketTypeRow[]
   teamMembers: readonly TeamMemberRow[]
   clients: readonly ClientRow[]
@@ -116,11 +118,11 @@ export function TicketsFilterRow({
   onToChange: (next: string) => void
   onSearchChange: (next: string) => void
   onDepartmentChange: (next: string | null) => void
-  onClientChange: (next: string[]) => void
-  onStatusChange: (next: string[]) => void
-  onPriorityChange: (next: string[]) => void
-  onTicketTypeChange: (next: string[]) => void
-  onAssignedToChange: (next: string[]) => void
+  onClientChange: (next: ListFilterState) => void
+  onStatusChange: (next: ListFilterState) => void
+  onPriorityChange: (next: ListFilterState) => void
+  onTicketTypeChange: (next: ListFilterState) => void
+  onAssignedToChange: (next: ListFilterState) => void
   onReset: () => void
 }) {
   const showClientFilter =
@@ -138,7 +140,7 @@ export function TicketsFilterRow({
   }, [departmentOptions])
 
   const ticketTypeItems = React.useMemo<FilterOption[]>(() => {
-    const items: FilterOption[] = [{ value: "any", label: "Any" }]
+    const items: FilterOption[] = []
     for (const tt of ticketTypes) {
       items.push({ value: String(tt.id), label: tt.typeName })
     }
@@ -147,7 +149,6 @@ export function TicketsFilterRow({
 
   const assigneeItems = React.useMemo<FilterOption[]>(() => {
     const items: FilterOption[] = [
-      { value: "any", label: "Any" },
       { value: "none", label: "Unassigned" },
     ]
     for (const tm of teamMembers) {
@@ -157,7 +158,7 @@ export function TicketsFilterRow({
   }, [teamMembers])
 
   const clientItems = React.useMemo<FilterOption[]>(() => {
-    const items: FilterOption[] = [{ value: "any", label: "Any" }]
+    const items: FilterOption[] = []
     for (const client of clients) {
       items.push({ value: String(client.id), label: client.clientName })
     }
@@ -256,30 +257,71 @@ export function TicketsFilterRow({
           }`}
         >
           <div className="flex h-10 items-stretch">
-            <MultiSelectDropdown
-              options={statusOptions}
-              values={statusValues}
-              onValuesChange={onStatusChange}
+            <MultiSelectCombobox
+              items={statusOptions}
+              values={statusFilter.values}
+              onValuesChange={(values) =>
+                onStatusChange({
+                  op: statusFilter.op,
+                  values: normalizeListFilterValues(statusFilter.op, values),
+                })
+              }
+              operator={statusFilter.op}
+              onOperatorChange={(op) =>
+                onStatusChange({
+                  op,
+                  values: normalizeListFilterValues(op, statusFilter.values),
+                })
+              }
+              operatorAriaLabel="Status filter operator"
               placeholder="Status…"
               ariaLabel="Filter by status"
+              emptyText="No statuses found."
             />
           </div>
 
           <div className="flex h-10 items-stretch">
-            <MultiSelectDropdown
-              options={priorityOptions}
-              values={priorityValues}
-              onValuesChange={onPriorityChange}
+            <MultiSelectCombobox
+              items={priorityOptions}
+              values={priorityFilter.values}
+              onValuesChange={(values) =>
+                onPriorityChange({
+                  op: priorityFilter.op,
+                  values: normalizeListFilterValues(priorityFilter.op, values),
+                })
+              }
+              operator={priorityFilter.op}
+              onOperatorChange={(op) =>
+                onPriorityChange({
+                  op,
+                  values: normalizeListFilterValues(op, priorityFilter.values),
+                })
+              }
+              operatorAriaLabel="Priority filter operator"
               placeholder="Priority…"
               ariaLabel="Filter by priority"
+              emptyText="No priorities found."
             />
           </div>
 
           <div className="flex h-10 items-stretch">
             <MultiSelectCombobox
               items={ticketTypeItems}
-              values={ticketTypeValues}
-              onValuesChange={onTicketTypeChange}
+              values={ticketTypeFilter.values}
+              onValuesChange={(values) =>
+                onTicketTypeChange({
+                  op: ticketTypeFilter.op,
+                  values: normalizeListFilterValues(ticketTypeFilter.op, values),
+                })
+              }
+              operator={ticketTypeFilter.op}
+              onOperatorChange={(op) =>
+                onTicketTypeChange({
+                  op,
+                  values: normalizeListFilterValues(op, ticketTypeFilter.values),
+                })
+              }
+              operatorAriaLabel="Ticket type filter operator"
               placeholder="Ticket types…"
               ariaLabel="Filter by ticket type"
               emptyText="No ticket types found."
@@ -290,8 +332,21 @@ export function TicketsFilterRow({
             <div className="flex h-10 items-stretch">
               <MultiSelectCombobox
                 items={assigneeItems}
-                values={assignedToValues}
-                onValuesChange={onAssignedToChange}
+                values={assignedToFilter.values}
+                onValuesChange={(values) =>
+                  onAssignedToChange({
+                    op: assignedToFilter.op,
+                    values: normalizeListFilterValues(assignedToFilter.op, values),
+                  })
+                }
+                operator={assignedToFilter.op}
+                onOperatorChange={(op) =>
+                  onAssignedToChange({
+                    op,
+                    values: normalizeListFilterValues(op, assignedToFilter.values),
+                  })
+                }
+                operatorAriaLabel="Assignees filter operator"
                 placeholder="Assignees…"
                 ariaLabel="Filter by assignee"
                 emptyText="No assignees found."
@@ -303,8 +358,21 @@ export function TicketsFilterRow({
             <div className="flex h-10 items-stretch">
               <MultiSelectCombobox
                 items={clientItems}
-                values={clientValues}
-                onValuesChange={onClientChange}
+                values={clientFilter.values}
+                onValuesChange={(values) =>
+                  onClientChange({
+                    op: clientFilter.op,
+                    values: normalizeListFilterValues(clientFilter.op, values),
+                  })
+                }
+                operator={clientFilter.op}
+                onOperatorChange={(op) =>
+                  onClientChange({
+                    op,
+                    values: normalizeListFilterValues(op, clientFilter.values),
+                  })
+                }
+                operatorAriaLabel="Clients filter operator"
                 placeholder="Clients…"
                 ariaLabel="Filter by client"
                 emptyText="No clients found."

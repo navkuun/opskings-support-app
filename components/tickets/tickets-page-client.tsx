@@ -8,7 +8,14 @@ import { CreateTicketDialog } from "@/components/tickets/create-ticket-dialog"
 import { TicketsFilterRow } from "@/components/tickets/tickets-filter-row"
 import { TicketsTable, type ClientTicketRow } from "@/components/tickets/tickets-table"
 import { Button } from "@/components/ui/button"
+import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { parseDateToUtcMs } from "@/lib/dashboard/utils"
+import {
+  defaultListFilterOperator,
+  normalizeListFilterValues,
+  type ListFilterState,
+  parseListFilterOperator,
+} from "@/lib/filters/list-filter"
 import { isEditableTarget } from "@/lib/keyboard"
 import { fuzzySearch } from "@/lib/search/fuzzy-search"
 import { isRecord, isString } from "@/lib/type-guards"
@@ -114,10 +121,15 @@ export function TicketsPageClient({
   const to = searchParams.get("to") ?? ""
   const deptParam = searchParams.get("dept")
   const clientParam = searchParams.get("clientId")
+  const clientOpParam = searchParams.get("clientIdOp")
   const statusParam = searchParams.get("status")
+  const statusOpParam = searchParams.get("statusOp")
   const priorityParam = searchParams.get("priority")
+  const priorityOpParam = searchParams.get("priorityOp")
   const ticketTypeParam = searchParams.get("ticketTypeId")
+  const ticketTypeOpParam = searchParams.get("ticketTypeIdOp")
   const assignedToParam = searchParams.get("assignedTo")
+  const assignedToOpParam = searchParams.get("assignedToOp")
   const searchParam = searchParams.get("q") ?? ""
 
   const [searchInput, setSearchInput] = React.useState(searchParam)
@@ -127,11 +139,40 @@ export function TicketsPageClient({
     setSearchInput(searchParam)
   }, [searchParam])
 
-  const clientValues = React.useMemo(() => parseMultiParam(clientParam), [clientParam])
-  const statusValues = React.useMemo(() => parseMultiParam(statusParam), [statusParam])
-  const priorityValues = React.useMemo(() => parseMultiParam(priorityParam), [priorityParam])
-  const ticketTypeValues = React.useMemo(() => parseMultiParam(ticketTypeParam), [ticketTypeParam])
-  const assignedToValues = React.useMemo(() => parseMultiParam(assignedToParam), [assignedToParam])
+  const clientOp = React.useMemo(() => parseListFilterOperator(clientOpParam), [clientOpParam])
+  const statusOp = React.useMemo(() => parseListFilterOperator(statusOpParam), [statusOpParam])
+
+  const priorityOp = React.useMemo(() => parseListFilterOperator(priorityOpParam), [priorityOpParam])
+  const ticketTypeOp = React.useMemo(
+    () => parseListFilterOperator(ticketTypeOpParam),
+    [ticketTypeOpParam],
+  )
+  const assignedToOp = React.useMemo(
+    () => parseListFilterOperator(assignedToOpParam),
+    [assignedToOpParam],
+  )
+
+  const clientValues = React.useMemo(
+    () => normalizeListFilterValues(clientOp, parseMultiParam(clientParam)),
+    [clientOp, clientParam],
+  )
+  const statusValues = React.useMemo(
+    () => normalizeListFilterValues(statusOp, parseMultiParam(statusParam)),
+    [statusOp, statusParam],
+  )
+
+  const priorityValues = React.useMemo(
+    () => normalizeListFilterValues(priorityOp, parseMultiParam(priorityParam)),
+    [priorityOp, priorityParam],
+  )
+  const ticketTypeValues = React.useMemo(
+    () => normalizeListFilterValues(ticketTypeOp, parseMultiParam(ticketTypeParam)),
+    [ticketTypeOp, ticketTypeParam],
+  )
+  const assignedToValues = React.useMemo(
+    () => normalizeListFilterValues(assignedToOp, parseMultiParam(assignedToParam)),
+    [assignedToOp, assignedToParam],
+  )
 
   const [ticketTypes, ticketTypesResult] = useQuery(queries.ticketTypes.list({ limit: 200 }))
   const [teamMembers, teamMembersResult] = useQuery(
@@ -200,24 +241,33 @@ export function TicketsPageClient({
       from,
       to,
       department,
+      statusOp,
       statusValues.join("|"),
+      priorityOp,
       priorityValues.join("|"),
+      ticketTypeOp,
       ticketTypeIds.join("|"),
+      assignedToOp,
       assignedToIds.join("|"),
       includeUnassigned ? "1" : "0",
       trimmedSearch,
-      canFilterClients ? clientIds.join("|") : "",
+      canFilterClients ? `${clientOp}::${clientIds.join("|")}` : "",
     ].join("::")
   }, [
     canFilterClients,
+    clientOp,
     clientIds,
     assignedToIds,
+    assignedToOp,
     department,
     from,
     includeUnassigned,
+    priorityOp,
     priorityValues,
+    statusOp,
     statusValues,
     ticketTypeIds,
+    ticketTypeOp,
     trimmedSearch,
     to,
     userType,
@@ -238,6 +288,8 @@ export function TicketsPageClient({
     const priorities = priorityValues.filter((value) => value !== "any")
     const deptValue = userType === "internal" && department !== "all" ? department : undefined
     const clientFilter = canFilterClients && clientIds.length ? clientIds : undefined
+    const assignedToOpValue =
+      assignedToIds.length || includeUnassigned ? assignedToOp : undefined
 
     return {
       limit: isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
@@ -246,14 +298,21 @@ export function TicketsPageClient({
       to: createdTo,
       department: deptValue,
       clientId: clientFilter,
+      clientIdOp: clientFilter ? clientOp : undefined,
       status: statuses.length ? statuses : undefined,
+      statusOp: statuses.length ? statusOp : undefined,
       priority: priorities.length ? priorities : undefined,
+      priorityOp: priorities.length ? priorityOp : undefined,
       ticketTypeId: ticketTypeIds.length ? ticketTypeIds : undefined,
+      ticketTypeIdOp: ticketTypeIds.length ? ticketTypeOp : undefined,
       assignedTo: assignedToIds.length ? assignedToIds : undefined,
+      assignedToOp: assignedToOpValue,
       includeUnassigned: includeUnassigned || undefined,
     }
   }, [
     assignedToIds,
+    assignedToOp,
+    clientOp,
     createdFrom,
     createdTo,
     cursor,
@@ -261,8 +320,11 @@ export function TicketsPageClient({
     includeUnassigned,
     isSearchMode,
     priorityValues,
+    priorityOp,
+    statusOp,
     statusValues,
     ticketTypeIds,
+    ticketTypeOp,
     userType,
     canFilterClients,
     clientIds,
@@ -364,70 +426,58 @@ export function TicketsPageClient({
   )
 
   const handleClientChange = React.useCallback(
-    (next: string[]) => {
+    (next: ListFilterState) => {
       if (!canFilterClients) return
 
-      if (next.includes("any")) {
-        updateSearchParams(router, searchParams, { clientId: null })
-        return
-      }
-
-      const filtered = next.map((value) => value.trim()).filter(Boolean).filter((value) => value !== "any")
+      const values = normalizeListFilterValues(next.op, next.values).filter((value) => value !== "any")
       updateSearchParams(router, searchParams, {
-        clientId: filtered.length ? filtered.join(",") : null,
+        clientId: values.length ? values.join(",") : null,
+        clientIdOp: next.op === defaultListFilterOperator ? null : next.op,
       })
     },
     [canFilterClients, router, searchParams],
   )
 
   const handleStatusChange = React.useCallback(
-    (next: string[]) => {
-      if (next.includes("any")) {
-        updateSearchParams(router, searchParams, { status: null })
-        return
-      }
-
-      const filtered = next.map((value) => value.trim()).filter(Boolean).filter((value) => value !== "any")
-      updateSearchParams(router, searchParams, { status: filtered.length ? filtered.join(",") : null })
+    (next: ListFilterState) => {
+      const values = normalizeListFilterValues(next.op, next.values).filter((value) => value !== "any")
+      updateSearchParams(router, searchParams, {
+        status: values.length ? values.join(",") : null,
+        statusOp: next.op === defaultListFilterOperator ? null : next.op,
+      })
     },
     [router, searchParams],
   )
 
   const handlePriorityChange = React.useCallback(
-    (next: string[]) => {
-      if (next.includes("any")) {
-        updateSearchParams(router, searchParams, { priority: null })
-        return
-      }
-
-      const filtered = next.map((value) => value.trim()).filter(Boolean).filter((value) => value !== "any")
-      updateSearchParams(router, searchParams, { priority: filtered.length ? filtered.join(",") : null })
+    (next: ListFilterState) => {
+      const values = normalizeListFilterValues(next.op, next.values).filter((value) => value !== "any")
+      updateSearchParams(router, searchParams, {
+        priority: values.length ? values.join(",") : null,
+        priorityOp: next.op === defaultListFilterOperator ? null : next.op,
+      })
     },
     [router, searchParams],
   )
 
   const handleTicketTypeChange = React.useCallback(
-    (next: string[]) => {
-      if (next.includes("any")) {
-        updateSearchParams(router, searchParams, { ticketTypeId: null })
-        return
-      }
-
-      const filtered = next.map((value) => value.trim()).filter(Boolean).filter((value) => value !== "any")
-      updateSearchParams(router, searchParams, { ticketTypeId: filtered.length ? filtered.join(",") : null })
+    (next: ListFilterState) => {
+      const values = normalizeListFilterValues(next.op, next.values).filter((value) => value !== "any")
+      updateSearchParams(router, searchParams, {
+        ticketTypeId: values.length ? values.join(",") : null,
+        ticketTypeIdOp: next.op === defaultListFilterOperator ? null : next.op,
+      })
     },
     [router, searchParams],
   )
 
   const handleAssignedToChange = React.useCallback(
-    (next: string[]) => {
-      if (next.includes("any")) {
-        updateSearchParams(router, searchParams, { assignedTo: null })
-        return
-      }
-
-      const filtered = next.map((value) => value.trim()).filter(Boolean).filter((value) => value !== "any")
-      updateSearchParams(router, searchParams, { assignedTo: filtered.length ? filtered.join(",") : null })
+    (next: ListFilterState) => {
+      const values = normalizeListFilterValues(next.op, next.values).filter((value) => value !== "any")
+      updateSearchParams(router, searchParams, {
+        assignedTo: values.length ? values.join(",") : null,
+        assignedToOp: next.op === defaultListFilterOperator ? null : next.op,
+      })
     },
     [router, searchParams],
   )
@@ -439,10 +489,15 @@ export function TicketsPageClient({
       to: null,
       dept: null,
       clientId: null,
+      clientIdOp: null,
       status: null,
+      statusOp: null,
       priority: null,
+      priorityOp: null,
       ticketTypeId: null,
+      ticketTypeIdOp: null,
       assignedTo: null,
+      assignedToOp: null,
       q: null,
     })
   }, [router, searchParams])
@@ -478,7 +533,7 @@ export function TicketsPageClient({
         return
       }
 
-      if (key === "c" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (key === "c" && !event.altKey && (event.metaKey || event.ctrlKey)) {
         if (isEditableTarget(event.target)) return
         if (!canCreateTickets) return
         event.preventDefault()
@@ -526,11 +581,11 @@ export function TicketsPageClient({
         search={searchInput}
         department={department}
         departmentOptions={departmentOptions}
-        clientValues={clientValues}
-        statusValues={statusValues}
-        priorityValues={priorityValues}
-        ticketTypeValues={ticketTypeValues}
-        assignedToValues={assignedToValues}
+        clientFilter={{ op: clientOp, values: clientValues }}
+        statusFilter={{ op: statusOp, values: statusValues }}
+        priorityFilter={{ op: priorityOp, values: priorityValues }}
+        ticketTypeFilter={{ op: ticketTypeOp, values: ticketTypeValues }}
+        assignedToFilter={{ op: assignedToOp, values: assignedToValues }}
         ticketTypes={ticketTypes}
         teamMembers={teamMembers}
         clients={clients}
@@ -555,7 +610,11 @@ export function TicketsPageClient({
               onClick={() => setCreateOpen(true)}
               aria-label="Create new ticket"
             >
-              New ticket
+              <span>New ticket</span>
+              <KbdGroup className="ml-1">
+                <Kbd>⌘</Kbd>
+                <Kbd>C</Kbd>
+              </KbdGroup>
             </Button>
           </div>
         ) : null}

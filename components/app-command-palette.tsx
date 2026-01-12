@@ -131,7 +131,7 @@ export function AppCommandPalette() {
         {
           value: "Actions",
           items: [
-            { value: "act:new-ticket", label: "New ticket", href: "/tickets?new=1", shortcut: "C" },
+            { value: "act:new-ticket", label: "New ticket", href: "/tickets?new=1", shortcut: "⌘C" },
             { value: "act:search", label: "Search tickets", href: "/tickets?focus=search", shortcut: "/" },
             { value: "act:sign-out", label: "Sign out", onSelect: signOut },
           ],
@@ -151,6 +151,7 @@ export function AppCommandPalette() {
         {
           value: "Actions",
           items: [
+            { value: "act:new-ticket", label: "New ticket", href: "/tickets?new=1", shortcut: "⌘C" },
             { value: "act:search", label: "Search tickets", href: "/tickets?focus=search", shortcut: "/" },
             { value: "act:sign-out", label: "Sign out", onSelect: signOut },
           ],
@@ -247,4 +248,3 @@ export function AppCommandPalette() {
     </CommandDialog>
   )
 }
-

@@ -3,15 +3,15 @@
 import * as React from "react"
 import { useZero } from "@rocicorp/zero/react"
 import {
-  BoxIcon,
-  Building2Icon,
-  ChevronRightIcon,
-  Maximize2Icon,
-  MoreHorizontalIcon,
-  PaperclipIcon,
+  CaretRightIcon,
+  CheckIcon,
+  CubeIcon,
+  BuildingsIcon,
+  DotsThreeIcon,
+  MagnifyingGlassIcon,
   UserIcon,
   XIcon,
-} from "lucide-react"
+} from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogClose, DialogPopup } from "@/components/ui/dialog"
@@ -23,11 +23,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { isRecord, isString } from "@/lib/type-guards"
+import { isRecord } from "@/lib/type-guards"
 import { cn } from "@/lib/utils"
 import { mutators } from "@/zero/mutators"
 import { Switch } from "@/components/ui/switch"
 import { toastManager } from "@/components/ui/toast"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group"
+import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { formatTeamMemberLabel } from "@/lib/dashboard/utils"
 
 type TicketTypeRow = {
   id: number
@@ -97,27 +106,6 @@ function formatStatusLabel(status: StatusValue) {
   return status === "in_progress" ? "In progress" : "Open"
 }
 
-function ConIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={cn("text-muted-foreground/72", className)}
-      aria-hidden="true"
-    >
-      <line x1="18" y1="20" x2="18" y2="10" />
-      <line x1="12" y1="20" x2="12" y2="4" />
-      <line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
-  )
-}
-
 function PriorityIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -160,6 +148,141 @@ function InProgressIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
       />
     </svg>
+  )
+}
+
+type SearchOption = {
+  value: string
+  label: string
+}
+
+function normalizeQuery(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function PropertySearchSelect({
+  icon,
+  value,
+  options,
+  placeholder,
+  searchPlaceholder,
+  emptyText,
+  onValueChange,
+  disabled,
+}: {
+  icon: React.ReactNode
+  value: string
+  options: readonly SearchOption[]
+  placeholder: string
+  searchPlaceholder: string
+  emptyText: string
+  onValueChange: (next: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [query, setQuery] = React.useState("")
+  const inputRef = React.useRef<HTMLInputElement | null>(null)
+
+  const selectedLabel = React.useMemo(() => {
+    if (!value) return null
+    return options.find((opt) => opt.value === value)?.label ?? null
+  }, [options, value])
+
+  const filtered = React.useMemo(() => {
+    const q = normalizeQuery(query)
+    if (!q) return options
+    return options.filter((opt) => normalizeQuery(opt.label).includes(q))
+  }, [options, query])
+
+  React.useEffect(() => {
+    if (!open) return
+    setQuery("")
+    window.setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn(
+              "h-6 w-fit rounded-md border border-transparent bg-muted/30 px-2 text-[13px] shadow-none hover:bg-muted/40",
+              disabled ? "pointer-events-none opacity-80" : "",
+            )}
+            aria-label={placeholder}
+            disabled={disabled}
+          />
+        }
+      >
+        <span className="inline-flex items-center gap-1.5">
+          {icon}
+          <span className={cn(selectedLabel ? "text-foreground/90" : "text-muted-foreground/70")}>
+            {selectedLabel ?? placeholder}
+          </span>
+        </span>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-[min(92vw,22rem)] [&_[data-slot=popover-viewport]]:p-0 [&_[data-slot=popover-viewport]]:py-0"
+      >
+        <div className="w-full">
+          <InputGroup className="h-9 rounded-none border-0 border-b bg-transparent shadow-none">
+            <InputGroupAddon align="inline-start" className="pl-3 pr-0">
+              <InputGroupText className="text-muted-foreground/72">
+                <MagnifyingGlassIcon className="size-4" aria-hidden="true" />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              ref={inputRef}
+              aria-label={searchPlaceholder}
+              placeholder={searchPlaceholder}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              size="lg"
+              unstyled
+              className="text-sm placeholder:text-muted-foreground/60"
+            />
+          </InputGroup>
+
+          <div className="max-h-64 overflow-y-auto overscroll-contain p-1">
+            {filtered.length === 0 ? (
+              <div className="px-2 py-8 text-center text-sm text-muted-foreground">
+                {emptyText}
+              </div>
+            ) : (
+              filtered.map((opt) => {
+                const isSelected = opt.value === value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-sm outline-none",
+                      "hover:bg-muted/40 focus-visible:bg-muted/40",
+                    )}
+                    onClick={() => {
+                      onValueChange(opt.value)
+                      setOpen(false)
+                    }}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {isSelected ? (
+                      <CheckIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                    ) : (
+                      <span className="size-4" aria-hidden="true" />
+                    )}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -216,6 +339,11 @@ export function CreateTicketDialog({
     setMessage("")
     setCreateMore(false)
   }, [initialTicketTypeId, open, teamMemberId])
+
+  React.useEffect(() => {
+    if (!open) return
+    window.setTimeout(() => titleRef.current?.focus(), 0)
+  }, [open])
 
   const submit = React.useCallback(async () => {
     if (isSubmitting) return
@@ -359,40 +487,21 @@ export function CreateTicketDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPopup className="font-sans w-[min(96vw,48rem)] max-w-none gap-0 overflow-hidden rounded-xl border border-border p-0 shadow-2xl ring-0">
+      <DialogPopup className="font-sans !w-[min(96vw,760px)] !max-w-[760px] sm:!max-w-[760px] gap-0 overflow-hidden rounded-xl border border-border p-0 shadow-2xl ring-0">
         <div className="flex select-none items-center justify-between px-4 py-3.5">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-[4px] border bg-muted/30 px-1.5 py-0.5">
-              <ConIcon />
-              <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
-                OK
-              </span>
-            </div>
-            <ChevronRightIcon className="size-3.5 text-muted-foreground/60" aria-hidden="true" />
-            <span className="text-sm font-medium text-muted-foreground">
-              {userType === "client" ? "New ticket" : "New ticket"}
-            </span>
+            <CaretRightIcon className="size-3.5 text-muted-foreground/60" aria-hidden="true" />
+            <span className="text-sm font-medium text-muted-foreground">New ticket</span>
           </div>
 
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label="Maximize (coming soon)"
-              disabled
-            >
-              <Maximize2Icon className="size-3.5" aria-hidden="true" />
-            </Button>
-            <DialogClose
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Close create ticket dialog"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <XIcon className="size-4" aria-hidden="true" />
-            </DialogClose>
-          </div>
+          <DialogClose
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Close create ticket dialog"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <XIcon className="size-4" aria-hidden="true" />
+          </DialogClose>
         </div>
 
         <div className="px-6 pt-1 pb-4">
@@ -403,6 +512,7 @@ export function CreateTicketDialog({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Ticket title"
+            autoFocus
             autoComplete="off"
             spellCheck
             className="mb-3 w-full bg-transparent text-[17px] font-medium text-foreground placeholder:text-muted-foreground/60 outline-none"
@@ -456,86 +566,26 @@ export function CreateTicketDialog({
           </Select>
 
           {userType === "internal" ? (
-            <Select value={selectedClientId} onValueChange={(value) => setSelectedClientId(value ?? "")}>
-              <SelectTrigger
-                size="sm"
-                className={cn(
-                  "h-6 w-fit rounded-md border border-transparent bg-muted/30 px-2 text-[13px] shadow-none hover:bg-muted/40",
-                  "[&>svg]:hidden",
-                )}
-              >
-                <SelectValue>
-                  {(value: unknown) => {
-                    if (!isString(value) || !value) {
-                      return (
-                        <span className="inline-flex items-center gap-1.5 text-muted-foreground/70">
-                          <Building2Icon className="size-3.5" aria-hidden="true" />
-                          Client
-                        </span>
-                      )
-                    }
-                    const id = Number(value)
-                    const match = clients.find((client) => client.id === id)
-                    return (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Building2Icon className="size-3.5" aria-hidden="true" />
-                        {match?.clientName ?? `Client ${value}`}
-                      </span>
-                    )
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start" className="w-[min(92vw,22rem)]">
-                <SelectGroup>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={String(client.id)}>
-                      {client.clientName}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <PropertySearchSelect
+              icon={<BuildingsIcon className="size-3.5 text-muted-foreground/70" aria-hidden="true" />}
+              value={selectedClientId}
+              options={clients.map((client) => ({ value: String(client.id), label: client.clientName }))}
+              placeholder="Client"
+              searchPlaceholder="Search clients…"
+              emptyText="No clients found."
+              onValueChange={setSelectedClientId}
+            />
           ) : null}
 
-          <Select value={ticketTypeId} onValueChange={(value) => setTicketTypeId(value ?? "")}>
-            <SelectTrigger
-              size="sm"
-              className={cn(
-                "h-6 w-fit rounded-md border border-transparent bg-muted/30 px-2 text-[13px] shadow-none hover:bg-muted/40",
-                "[&>svg]:hidden",
-              )}
-            >
-              <SelectValue>
-                {(value: unknown) => {
-                  if (!isString(value) || !value) {
-                    return (
-                      <span className="inline-flex items-center gap-1.5 text-muted-foreground/70">
-                        <BoxIcon className="size-3.5" aria-hidden="true" />
-                        Ticket type
-                      </span>
-                    )
-                  }
-                  const id = Number(value)
-                  const match = ticketTypes.find((tt) => tt.id === id)
-                  return (
-                    <span className="inline-flex items-center gap-1.5">
-                      <BoxIcon className="size-3.5" aria-hidden="true" />
-                      {match?.typeName ?? `Type ${value}`}
-                    </span>
-                  )
-                }}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent align="start" className="w-[min(92vw,22rem)]">
-              <SelectGroup>
-                {ticketTypes.map((tt) => (
-                  <SelectItem key={tt.id} value={String(tt.id)}>
-                    {tt.typeName}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <PropertySearchSelect
+            icon={<CubeIcon className="size-3.5 text-muted-foreground/70" aria-hidden="true" />}
+            value={ticketTypeId}
+            options={ticketTypes.map((tt) => ({ value: String(tt.id), label: tt.typeName }))}
+            placeholder="Ticket type"
+            searchPlaceholder="Search ticket types…"
+            emptyText="No ticket types found."
+            onValueChange={setTicketTypeId}
+          />
 
           <Select
             value={priority}
@@ -573,46 +623,21 @@ export function CreateTicketDialog({
           </Select>
 
           {userType === "internal" ? (
-            <Select value={assignedTo} onValueChange={(value) => setAssignedTo(value ?? "")}>
-              <SelectTrigger
-                size="sm"
-                className={cn(
-                  "h-6 w-fit rounded-md border border-transparent bg-muted/30 px-2 text-[13px] shadow-none hover:bg-muted/40",
-                  "[&>svg]:hidden",
-                )}
-              >
-                <SelectValue>
-                  {(value: unknown) => {
-                    if (!isString(value) || !value || value === "none") {
-                      return (
-                        <span className="inline-flex items-center gap-1.5 text-muted-foreground/70">
-                          <UserIcon className="size-3.5" aria-hidden="true" />
-                          Assignee
-                        </span>
-                      )
-                    }
-                    const id = Number(value)
-                    const match = teamMembers.find((tm) => tm.id === id)
-                    return (
-                      <span className="inline-flex items-center gap-1.5">
-                        <UserIcon className="size-3.5" aria-hidden="true" />
-                        {match?.username ?? `User ${value}`}
-                      </span>
-                    )
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start" className="w-[min(92vw,22rem)]">
-                <SelectGroup>
-                  <SelectItem value="none">Unassigned</SelectItem>
-                  {teamMembers.map((tm) => (
-                    <SelectItem key={tm.id} value={String(tm.id)}>
-                      {tm.username}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <PropertySearchSelect
+              icon={<UserIcon className="size-3.5 text-muted-foreground/70" aria-hidden="true" />}
+              value={assignedTo}
+              options={[
+                { value: "none", label: "Unassigned" },
+                ...teamMembers.map((tm) => ({
+                  value: String(tm.id),
+                  label: formatTeamMemberLabel(tm.username),
+                })),
+              ]}
+              placeholder="Assignee"
+              searchPlaceholder="Search assignees…"
+              emptyText="No assignees found."
+              onValueChange={setAssignedTo}
+            />
           ) : null}
 
           <Button
@@ -622,36 +647,23 @@ export function CreateTicketDialog({
             aria-label="More properties"
             disabled
           >
-            <MoreHorizontalIcon className="size-4" aria-hidden="true" />
+            <DotsThreeIcon className="size-4" aria-hidden="true" />
           </Button>
         </div>
 
         <div className="mt-2 flex items-center justify-between border-t px-5 py-3.5">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="-ml-1 text-muted-foreground hover:text-foreground"
-            aria-label="Attach (coming soon)"
-            disabled
-          >
-            <PaperclipIcon className="size-4 rotate-45" aria-hidden="true" />
+          <label className="flex cursor-pointer items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground">
+            <Switch checked={createMore} onCheckedChange={(checked) => setCreateMore(Boolean(checked))} />
+            <span className="select-none">Create more</span>
+          </label>
+
+          <Button onClick={submit} disabled={isSubmitting} size="sm" className="h-8 px-3 text-[13px] font-medium">
+            <span>{isSubmitting ? "Creating…" : "Create ticket"}</span>
+            <KbdGroup className="ml-2">
+              <Kbd>⌘</Kbd>
+              <Kbd>Enter</Kbd>
+            </KbdGroup>
           </Button>
-
-          <div className="flex items-center gap-4">
-            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground">
-              <Switch checked={createMore} onCheckedChange={(checked) => setCreateMore(Boolean(checked))} />
-              <span className="select-none">Create more</span>
-            </label>
-
-            <Button
-              onClick={submit}
-              disabled={isSubmitting}
-              size="sm"
-              className="h-8 px-3 text-[13px] font-medium"
-            >
-              {isSubmitting ? "Creating…" : "Create ticket"}
-            </Button>
-          </div>
         </div>
       </DialogPopup>
     </Dialog>

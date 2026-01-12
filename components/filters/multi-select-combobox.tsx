@@ -2,6 +2,8 @@
 
 import * as React from "react"
 
+import { ListFilterOperatorButtonGroup } from "@/components/filters/list-filter-operator-button-group"
+import { Badge } from "@/components/ui/badge"
 import {
   Combobox,
   ComboboxChip,
@@ -13,6 +15,7 @@ import {
   ComboboxPopup,
   ComboboxValue,
 } from "@/components/ui/combobox"
+import type { ListFilterOperator } from "@/lib/filters/list-filter"
 import type { FilterOption } from "@/lib/filters/types"
 import { cn } from "@/lib/utils"
 
@@ -20,6 +23,9 @@ export function MultiSelectCombobox({
   items,
   values,
   onValuesChange,
+  operator,
+  onOperatorChange,
+  operatorAriaLabel,
   placeholder,
   ariaLabel,
   emptyText,
@@ -28,6 +34,9 @@ export function MultiSelectCombobox({
   items: readonly FilterOption[]
   values: readonly string[]
   onValuesChange: (next: string[]) => void
+  operator?: ListFilterOperator
+  onOperatorChange?: (next: ListFilterOperator) => void
+  operatorAriaLabel?: string
   placeholder: string
   ariaLabel: string
   emptyText: string
@@ -49,6 +58,9 @@ export function MultiSelectCombobox({
     [itemByValue, values],
   )
 
+  const showOperatorControls = Boolean(operator && onOperatorChange)
+  const isExcludeOperator = operator === "is_not" || operator === "is_none_of"
+
   return (
     <Combobox
       items={items}
@@ -57,6 +69,16 @@ export function MultiSelectCombobox({
       onValueChange={(next) => onValuesChange(next.map((item) => item.value))}
     >
       <ComboboxChips
+        startAddon={
+          showOperatorControls && isExcludeOperator ? (
+            <Badge
+              variant="outline"
+              className="h-5 px-1.5 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground"
+            >
+              Not
+            </Badge>
+          ) : undefined
+        }
         className={cn(
           "no-scrollbar h-full w-full flex-nowrap overflow-x-auto overflow-y-hidden rounded-none border-0 bg-transparent px-2 py-0 shadow-none before:hidden focus-within:border-0 focus-within:ring-0 [&_[data-slot=combobox-chip]]:max-w-full [&_[data-slot=combobox-chip]]:shrink-0",
           className,
@@ -80,6 +102,15 @@ export function MultiSelectCombobox({
         </ComboboxValue>
       </ComboboxChips>
       <ComboboxPopup>
+        {showOperatorControls && operator && onOperatorChange ? (
+          <div className="sticky top-0 z-10 border-b bg-popover/95 p-1 backdrop-blur-sm">
+            <ListFilterOperatorButtonGroup
+              value={operator}
+              onValueChange={onOperatorChange}
+              ariaLabel={operatorAriaLabel ?? `${ariaLabel} operator`}
+            />
+          </div>
+        ) : null}
         <ComboboxEmpty>{emptyText}</ComboboxEmpty>
         <ComboboxList>
           {(item: FilterOption) => (

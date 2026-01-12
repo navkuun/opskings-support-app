@@ -5,6 +5,11 @@ import { NextResponse } from "next/server"
 import { getAuth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { appUsers } from "@/lib/db/schema/app-users"
+import {
+  normalizeListFilterValues,
+  parseListFilterOperator,
+  type ListFilterOperator,
+} from "@/lib/filters/list-filter"
 
 export const runtime = "nodejs"
 
@@ -38,8 +43,23 @@ function parseCsvTokens(value: string | null) {
 }
 
 type AssignedToFilter = {
+  op: ListFilterOperator
   includeUnassigned: boolean
   ids: number[]
+}
+
+type IdListFilter = {
+  op: ListFilterOperator
+  ids: number[]
+}
+
+type StringListFilter = {
+  op: ListFilterOperator
+  values: string[]
+}
+
+function isExcludeOperator(op: ListFilterOperator) {
+  return op === "is_not" || op === "is_none_of"
 }
 
 function buildTicketWhere({
@@ -47,15 +67,15 @@ function buildTicketWhere({
   createdFrom,
   createdTo,
   assignedTo,
-  ticketTypeIds,
-  priorities,
+  ticketType,
+  priority,
 }: {
   alias?: string
   createdFrom: Date | null
   createdTo: Date | null
   assignedTo: AssignedToFilter | undefined
-  ticketTypeIds: number[] | undefined
-  priorities: string[] | undefined
+  ticketType: IdListFilter | undefined
+  priority: StringListFilter | undefined
 }) {
   const clauses: Array<ReturnType<typeof sql>> = []
   const col = (name: string) => (alias ? sql.raw(`${alias}.${name}`) : sql.raw(name))
@@ -64,38 +84,76 @@ function buildTicketWhere({
   if (createdTo) clauses.push(sql`${col("created_at")} <= ${createdTo}`)
 
   if (assignedTo) {
-    const parts: Array<ReturnType<typeof sql>> = []
-    if (assignedTo.includeUnassigned) {
-      parts.push(sql`${col("assigned_to")} is null`)
-    }
-    if (assignedTo.ids.length) {
-      parts.push(
-        sql`${col("assigned_to")} in (${sql.join(
+    const isExclude = isExcludeOperator(assignedTo.op)
+
+    if (!isExclude) {
+      const parts: Array<ReturnType<typeof sql>> = []
+      if (assignedTo.includeUnassigned) {
+        parts.push(sql`${col("assigned_to")} is null`)
+      }
+      if (assignedTo.ids.length) {
+        parts.push(
+          sql`${col("assigned_to")} in (${sql.join(
+            assignedTo.ids.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        )
+      }
+      if (parts.length === 1) clauses.push(parts[0] ?? sql`false`)
+      else if (parts.length > 1) clauses.push(sql`(${sql.join(parts, sql` or `)})`)
+    } else if (assignedTo.includeUnassigned && assignedTo.ids.length) {
+      clauses.push(
+        sql`(${col("assigned_to")} is not null and ${col("assigned_to")} not in (${sql.join(
           assignedTo.ids.map((id) => sql`${id}`),
+          sql`, `,
+        )}))`,
+      )
+    } else if (assignedTo.includeUnassigned) {
+      clauses.push(sql`${col("assigned_to")} is not null`)
+    } else if (assignedTo.ids.length) {
+      clauses.push(
+        sql`(${col("assigned_to")} is null or ${col("assigned_to")} not in (${sql.join(
+          assignedTo.ids.map((id) => sql`${id}`),
+          sql`, `,
+        )}))`,
+      )
+    }
+  }
+
+  if (ticketType && ticketType.ids.length) {
+    if (isExcludeOperator(ticketType.op)) {
+      clauses.push(
+        sql`(${col("ticket_type_id")} is null or ${col("ticket_type_id")} not in (${sql.join(
+          ticketType.ids.map((id) => sql`${id}`),
+          sql`, `,
+        )}))`,
+      )
+    } else {
+      clauses.push(
+        sql`${col("ticket_type_id")} in (${sql.join(
+          ticketType.ids.map((id) => sql`${id}`),
           sql`, `,
         )})`,
       )
     }
-    if (parts.length === 1) clauses.push(parts[0] ?? sql`false`)
-    else if (parts.length > 1) clauses.push(sql`(${sql.join(parts, sql` or `)})`)
   }
 
-  if (ticketTypeIds && ticketTypeIds.length) {
-    clauses.push(
-      sql`${col("ticket_type_id")} in (${sql.join(
-        ticketTypeIds.map((id) => sql`${id}`),
-        sql`, `,
-      )})`,
-    )
-  }
-
-  if (priorities && priorities.length) {
-    clauses.push(
-      sql`${col("priority")} in (${sql.join(
-        priorities.map((value) => sql`${value}`),
-        sql`, `,
-      )})`,
-    )
+  if (priority && priority.values.length) {
+    if (isExcludeOperator(priority.op)) {
+      clauses.push(
+        sql`(${col("priority")} is null or ${col("priority")} not in (${sql.join(
+          priority.values.map((value) => sql`${value}`),
+          sql`, `,
+        )}))`,
+      )
+    } else {
+      clauses.push(
+        sql`${col("priority")} in (${sql.join(
+          priority.values.map((value) => sql`${value}`),
+          sql`, `,
+        )})`,
+      )
+    }
   }
 
   if (!clauses.length) return sql`true`
@@ -132,7 +190,11 @@ export async function GET(req: Request) {
   const createdFrom = fromParam ? parseDateToUtc(fromParam, "start") : null
   const createdTo = toParam ? parseDateToUtc(toParam, "end") : null
 
-  const assignedToTokens = parseCsvTokens(url.searchParams.get("assignedTo"))
+  const assignedToOp = parseListFilterOperator(url.searchParams.get("assignedToOp"))
+  const assignedToTokens = normalizeListFilterValues(
+    assignedToOp,
+    parseCsvTokens(url.searchParams.get("assignedTo")),
+  )
   const assignedTo: AssignedToFilter | undefined =
     !assignedToTokens.length || assignedToTokens.includes("any")
       ? undefined
@@ -148,35 +210,47 @@ export async function GET(req: Request) {
           )
 
           if (!includeUnassigned && !ids.length) return undefined
-          return { includeUnassigned, ids }
+          return { op: assignedToOp, includeUnassigned, ids }
         })()
 
-  const ticketTypeTokens = parseCsvTokens(url.searchParams.get("ticketTypeId"))
-  const ticketTypeIds =
-    !ticketTypeTokens.length || ticketTypeTokens.includes("any")
-      ? undefined
-      : Array.from(
-          new Set(
-            ticketTypeTokens
-              .map((token) => parseOptionalInt(token))
-              .filter((value): value is number => value != null),
-          ),
-        )
+  const ticketTypeOp = parseListFilterOperator(url.searchParams.get("ticketTypeIdOp"))
+  const ticketTypeTokens = normalizeListFilterValues(
+    ticketTypeOp,
+    parseCsvTokens(url.searchParams.get("ticketTypeId")),
+  )
+  const ticketType: IdListFilter | undefined = (() => {
+    if (!ticketTypeTokens.length || ticketTypeTokens.includes("any")) return undefined
+    const ids = Array.from(
+      new Set(
+        ticketTypeTokens
+          .map((token) => parseOptionalInt(token))
+          .filter((value): value is number => value != null),
+      ),
+    )
+    if (!ids.length) return undefined
+    return { op: ticketTypeOp, ids }
+  })()
 
-  const priorityTokens = parseCsvTokens(url.searchParams.get("priority"))
-  const priorities =
-    !priorityTokens.length || priorityTokens.includes("any")
-      ? undefined
-      : Array.from(
-          new Set(priorityTokens.map((token) => token.trim()).filter(Boolean)),
-        )
+  const priorityOp = parseListFilterOperator(url.searchParams.get("priorityOp"))
+  const priorityTokens = normalizeListFilterValues(
+    priorityOp,
+    parseCsvTokens(url.searchParams.get("priority")),
+  )
+  const priority: StringListFilter | undefined = (() => {
+    if (!priorityTokens.length || priorityTokens.includes("any")) return undefined
+    const values = Array.from(
+      new Set(priorityTokens.map((token) => token.trim()).filter(Boolean)),
+    )
+    if (!values.length) return undefined
+    return { op: priorityOp, values }
+  })()
 
   const ticketWhere = buildTicketWhere({
     createdFrom,
     createdTo,
     assignedTo,
-    ticketTypeIds,
-    priorities,
+    ticketType,
+    priority,
   })
 
   const totalRows = await db.execute<{ total: number }>(
@@ -232,8 +306,8 @@ export async function GET(req: Request) {
         createdFrom,
         createdTo,
         assignedTo,
-        ticketTypeIds,
-        priorities,
+        ticketType,
+        priority,
       })}
         and tf.rating is not null
     `,

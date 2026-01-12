@@ -4,13 +4,36 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useQuery, useZero } from "@rocicorp/zero/react"
-import { ArrowLeftIcon, SendIcon, StarIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CaretRightIcon,
+  CellSignalMediumIcon,
+  CircleIcon,
+  CopyIcon,
+  CubeIcon,
+  DotsThreeIcon,
+  GitBranchIcon,
+  HexagonIcon,
+  LinkSimpleIcon,
+  PaperPlaneRightIcon,
+  StarIcon,
+  TagIcon,
+  UserCircleIcon,
+} from "@phosphor-icons/react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Frame, FramePanel } from "@/components/ui/frame"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Kbd } from "@/components/ui/kbd"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { formatTeamMemberLabel } from "@/lib/dashboard/utils"
 import { isEditableTarget } from "@/lib/keyboard"
 import { isRecord, isString } from "@/lib/type-guards"
 import { cn } from "@/lib/utils"
@@ -53,24 +76,24 @@ function formatTimestamp(ms: number | null | undefined) {
   return new Date(ms).toLocaleString()
 }
 
-function getStatusDot(status: string | null | undefined) {
+function getStatusTextColor(status: string | null | undefined) {
   const value = (status ?? "").toLowerCase()
-  if (!value) return "bg-muted-foreground/50"
-  if (value.includes("resolved") || value.includes("closed")) return "bg-emerald-500"
-  if (value.includes("progress")) return "bg-amber-500"
-  if (value.includes("hold") || value.includes("blocked")) return "bg-blue-500"
-  if (value.includes("cancel")) return "bg-rose-500"
-  return "bg-muted-foreground/50"
+  if (!value) return "text-muted-foreground/70"
+  if (value.includes("resolved") || value.includes("closed")) return "text-emerald-500"
+  if (value.includes("progress")) return "text-amber-500"
+  if (value.includes("hold") || value.includes("blocked")) return "text-blue-500"
+  if (value.includes("cancel")) return "text-rose-500"
+  return "text-muted-foreground/70"
 }
 
-function getPriorityDot(priority: string | null | undefined) {
+function getPriorityTextColor(priority: string | null | undefined) {
   const value = (priority ?? "").toLowerCase()
-  if (!value) return "bg-muted-foreground/50"
-  if (value.includes("urgent")) return "bg-rose-500"
-  if (value.includes("high")) return "bg-amber-500"
-  if (value.includes("medium")) return "bg-blue-500"
-  if (value.includes("low")) return "bg-emerald-500"
-  return "bg-muted-foreground/50"
+  if (!value) return "text-muted-foreground/70"
+  if (value.includes("urgent")) return "text-rose-500"
+  if (value.includes("high")) return "text-amber-500"
+  if (value.includes("medium")) return "text-blue-500"
+  if (value.includes("low")) return "text-emerald-500"
+  return "text-muted-foreground/70"
 }
 
 type Rating = 1 | 2 | 3 | 4 | 5
@@ -79,6 +102,25 @@ function parseRating(value: unknown): Rating | null {
   if (typeof value !== "number" || !Number.isInteger(value)) return null
   if (value === 1 || value === 2 || value === 3 || value === 4 || value === 5) return value
   return null
+}
+
+function SidebarSection({
+  title,
+  children,
+  border = true,
+}: {
+  title: string
+  children: React.ReactNode
+  border?: boolean
+}) {
+  return (
+    <div className={cn("py-3", border ? "border-b border-border/40" : "")}>
+      <h3 className="px-5 text-[11px] font-medium text-muted-foreground mb-1 hover:text-foreground cursor-pointer transition-colors">
+        {title}
+      </h3>
+      <div className="flex flex-col gap-0.5">{children}</div>
+    </div>
+  )
 }
 
 export function TicketDetailsPageClient({
@@ -243,7 +285,7 @@ export function TicketDetailsPageClient({
   const assigneeLabel = React.useMemo(() => {
     if (!ticket) return "Unassigned"
     if ("assignee" in ticket && isRecord(ticket.assignee) && isString(ticket.assignee.username)) {
-      return ticket.assignee.username
+      return formatTeamMemberLabel(ticket.assignee.username)
     }
     return ticket.assignedTo ? `User ${ticket.assignedTo}` : "Unassigned"
   }, [ticket])
@@ -340,315 +382,494 @@ export function TicketDetailsPageClient({
     [isInternal, ticket, ticketId, updatingField, z],
   )
 
+  type TicketMessage = (typeof messages)[number]
+
+  const getMessageAuthor = React.useCallback(
+    (msg: TicketMessage) => {
+      const isFromClient = Boolean(msg.fromClient)
+      const fromTeamMember = "fromTeamMember" in msg ? msg.fromTeamMember : null
+
+      if (isFromClient) {
+        return isClient ? "You" : "Client"
+      }
+
+      if (isRecord(fromTeamMember) && isString(fromTeamMember.username)) {
+        return formatTeamMemberLabel(fromTeamMember.username)
+      }
+
+      return "Team"
+    },
+    [isClient],
+  )
+
+  const descriptionMessage = messages[0] ?? null
+  const commentMessages = messages.length > 1 ? messages.slice(1) : []
+
+  const copyLink = React.useCallback(async () => {
+    if (typeof window === "undefined") return
+    if (!("clipboard" in navigator)) return
+
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+    } catch {
+      // ignore
+    }
+  }, [])
+
   return (
-    <div className="w-full px-6 py-6">
-      <div className="mx-auto w-full max-w-5xl space-y-5">
-        <div className="flex items-center justify-between gap-4">
-          <Button variant="ghost" size="sm" render={<Link href="/tickets" />}>
-            <ArrowLeftIcon className="size-4" aria-hidden="true" />
-            Back
-          </Button>
-          <div className="text-muted-foreground text-xs">Esc to go back</div>
+    <div className="flex w-full flex-1 min-h-0 bg-background text-foreground overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-[50px] items-center justify-between gap-4 border-b border-border/40 px-6 py-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Button variant="ghost" size="xs" render={<Link href="/tickets" />} aria-label="Back to tickets">
+              <ArrowLeftIcon className="size-4" aria-hidden="true" />
+              Tickets
+            </Button>
+            <CaretRightIcon className="size-3.5 text-muted-foreground/60" aria-hidden="true" />
+            <span className="font-medium text-foreground/80">#{ticketId}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Back</span>
+            <Kbd>Esc</Kbd>
+          </div>
         </div>
 
-        <Frame>
-          <FramePanel className="space-y-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-muted-foreground text-xs font-medium">Ticket #{ticketId}</div>
-                <h1 className="truncate text-lg font-semibold">{ticketTitle}</h1>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">
-                  <span
-                    aria-hidden="true"
-                    className={cn("size-1.5 rounded-full", getStatusDot(ticket?.status))}
-                  />
-                  {ticket?.status ? formatLabel(ticket.status) : "—"}
-                </Badge>
-                <Badge variant="outline">
-                  <span
-                    aria-hidden="true"
-                    className={cn("size-1.5 rounded-full", getPriorityDot(ticket?.priority))}
-                  />
-                  {ticket?.priority ? formatLabel(ticket.priority) : "—"}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="grid gap-2 text-sm sm:grid-cols-2">
-              {clientLabel ? (
-                <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                  <span className="text-muted-foreground">Client</span>
-                  <span className="font-medium">{clientLabel}</span>
-                </div>
-              ) : null}
-              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                <span className="text-muted-foreground">Type</span>
-                <span className="font-medium">{ticketTypeLabel}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                <span className="text-muted-foreground">Assignee</span>
-                <span className="font-medium">{assigneeLabel}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                <span className="text-muted-foreground">Created</span>
-                <span className="font-medium tabular-nums">{formatTimestamp(ticket?.createdAt ?? null)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                <span className="text-muted-foreground">Resolved</span>
-                <span className="font-medium tabular-nums">{formatTimestamp(ticket?.resolvedAt ?? null)}</span>
-              </div>
-            </div>
-
-            {isInternal && ticket ? (
-              <div className="grid gap-2 sm:grid-cols-3">
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Status</div>
-                  <select
-                    value={ticket.status ?? "open"}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      if (value === "open" || value === "in_progress" || value === "resolved") {
-                        void updateStatus(value)
-                      }
-                    }}
-                    disabled={updatingField !== null}
-                    className={cn(
-                      "mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-sm shadow-xs outline-none",
-                      "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/24",
-                    )}
-                  >
-                    <option value="open">Open</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="resolved">Resolved</option>
-                  </select>
-                </div>
-
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Priority</div>
-                  <select
-                    value={ticket.priority ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      if (!value) {
-                        void updatePriority(null)
-                        return
-                      }
-                      if (value === "low" || value === "medium" || value === "high" || value === "urgent") {
-                        void updatePriority(value)
-                      }
-                    }}
-                    disabled={updatingField !== null}
-                    className={cn(
-                      "mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-sm shadow-xs outline-none",
-                      "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/24",
-                    )}
-                  >
-                    <option value="">—</option>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
-
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Assignee</div>
-                  <select
-                    value={ticket.assignedTo ? String(ticket.assignedTo) : ""}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      if (!value) {
-                        void updateAssignee(null)
-                        return
-                      }
-                      const parsed = Number(value)
-                      if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return
-                      void updateAssignee(parsed)
-                    }}
-                    disabled={updatingField !== null}
-                    className={cn(
-                      "mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-sm shadow-xs outline-none",
-                      "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/24",
-                    )}
-                  >
-                    <option value="">Unassigned</option>
-                    {teamMembers.map((tm) => (
-                      <option key={tm.id} value={String(tm.id)}>
-                        {tm.username}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ) : null}
-
-            {updateError ? <div className="text-destructive text-xs">{updateError}</div> : null}
-
+        <div className="flex-1 overflow-y-auto min-h-0 bg-background">
+          <div className="mx-auto w-full max-w-[850px] px-6 pb-24 pt-6 sm:px-8 lg:px-12">
             {ticketResult.type !== "complete" ? (
-              <div className="text-muted-foreground text-xs">Loading ticket…</div>
+              <div className="text-muted-foreground text-sm">Loading ticket…</div>
             ) : !ticket ? (
-              <div className="text-sm">
-                <div className="font-semibold">Not found</div>
+              <div className="space-y-2">
+                <div className="text-lg font-semibold">Not found</div>
                 <div className="text-muted-foreground text-sm">
                   You don’t have access to this ticket, or it doesn’t exist.
                 </div>
               </div>
-            ) : null}
-          </FramePanel>
-        </Frame>
+            ) : (
+              <>
+                <h1 className="mb-6 text-[23px] leading-[1.35] font-semibold tracking-tight text-foreground">
+                  {ticketTitle}
+                </h1>
 
-        <Frame>
-          <FramePanel className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Messages</div>
-              <div className="text-muted-foreground text-xs">
-                {messagesResult.type === "complete" ? `${messages.length} total` : "Loading…"}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {messagesResult.type !== "complete" ? (
-                <div className="text-muted-foreground text-sm">Loading messages…</div>
-              ) : messages.length === 0 ? (
-                <div className="text-muted-foreground text-sm">No messages yet.</div>
-              ) : (
-                messages.map((msg) => {
-                  const isFromClient = Boolean(msg.fromClient)
-                  const fromTeamMember =
-                    "fromTeamMember" in msg ? msg.fromTeamMember : null
-                  const author = isFromClient
-                    ? isClient
-                      ? "You"
-                      : "Client"
-                    : isRecord(fromTeamMember) && isString(fromTeamMember.username)
-                      ? fromTeamMember.username
-                      : "Team"
-                  return (
-                    <div key={msg.id} className="rounded-lg border bg-muted/20 px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs font-semibold">{author}</div>
-                        <div className="text-muted-foreground text-xs tabular-nums">
-                          {formatTimestamp(msg.createdAt ?? null)}
-                        </div>
-                      </div>
-                      <div className="mt-2 whitespace-pre-wrap text-sm">{msg.messageText}</div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </FramePanel>
-
-          <FramePanel className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold">Reply</div>
-              <div className="text-muted-foreground text-xs">Cmd/Ctrl + Enter to send</div>
-            </div>
-
-            <Textarea
-              ref={replyRef}
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              placeholder="Write a reply…"
-              rows={4}
-              disabled={!canSendReply}
-            />
-
-            {replyError ? <div className="text-destructive text-xs">{replyError}</div> : null}
-
-            <div className="flex items-center justify-end">
-              <Button onClick={() => void sendReply()} disabled={!canSendReply || sendingReply}>
-                <SendIcon aria-hidden="true" className="size-4" />
-                {sendingReply ? "Sending…" : "Send"}
-              </Button>
-            </div>
-          </FramePanel>
-        </Frame>
-
-        {ticket && ticket.status === "resolved" ? (
-          <Frame>
-            <FramePanel className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold">Feedback</div>
-                <div className="text-muted-foreground text-xs">
-                  {feedbackResult.type === "complete" && feedback ? "Submitted" : "Not submitted"}
+                <div className="mb-6 text-[13px] font-medium text-muted-foreground">
+                  {ticketTypeLabel}
+                  {clientLabel ? ` • ${clientLabel}` : ""}
+                  {assigneeLabel ? ` • ${assigneeLabel}` : ""}
                 </div>
-              </div>
 
-              {isClient ? (
-                <>
-                  <div className="flex items-center gap-1">
-                    {([1, 2, 3, 4, 5] as const).map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={cn(
-                          "inline-flex size-9 items-center justify-center rounded-md border transition-colors",
-                          value <= rating
-                            ? "border-amber-400/40 bg-amber-400/10 text-amber-500"
-                            : "border-border bg-background text-muted-foreground hover:bg-muted/40",
-                        )}
-                        aria-label={`${value} star`}
-                        onClick={() => setRating(value)}
-                      >
-                        <StarIcon className="size-4" aria-hidden="true" />
-                      </button>
-                    ))}
-                    <span className="text-muted-foreground ml-2 text-xs">{rating}/5</span>
-                  </div>
-
-                  <Input
-                    value={feedbackText}
-                    onChange={(e) => setFeedbackText(e.target.value)}
-                    placeholder="Optional feedback…"
-                    disabled={submittingFeedback}
-                  />
-
-                  {feedbackError ? <div className="text-destructive text-xs">{feedbackError}</div> : null}
-
-                  <div className="flex items-center justify-end">
-                    <Button onClick={() => void submitFeedback()} disabled={submittingFeedback}>
-                      {submittingFeedback ? "Submitting…" : feedback ? "Update feedback" : "Submit feedback"}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm">
-                  {feedback ? (
-                    <div className="space-y-1">
-                      <div className="text-muted-foreground text-xs">
-                        Rating:{" "}
-                        <span className="font-medium text-foreground">
-                          {typeof feedback.rating === "number" ? feedback.rating : "—"}
-                        </span>
-                      </div>
-                      <div className="text-muted-foreground text-xs">
-                        Feedback:{" "}
-                        <span className="font-medium text-foreground">
-                          {isString(feedback.feedbackText) && feedback.feedbackText.trim()
-                            ? feedback.feedbackText
-                            : "—"}
-                        </span>
-                      </div>
-                    </div>
+                <div className="space-y-5 text-[15px] leading-[1.6] text-foreground/90">
+                  {messagesResult.type !== "complete" ? (
+                    <div className="text-muted-foreground">Loading…</div>
+                  ) : !descriptionMessage ? (
+                    <p className="text-muted-foreground">No description.</p>
                   ) : (
-                    <div className="text-muted-foreground">No feedback yet.</div>
+                    <>
+                      <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+                        <span className="font-medium">{getMessageAuthor(descriptionMessage)}</span>
+                        <span className="tabular-nums">
+                          {formatTimestamp(descriptionMessage.createdAt ?? null)}
+                        </span>
+                      </div>
+                      <div className="whitespace-pre-wrap">{descriptionMessage.messageText}</div>
+                    </>
                   )}
                 </div>
-              )}
-            </FramePanel>
-          </Frame>
-        ) : null}
 
-        {isInternal ? (
-          <div className="text-muted-foreground text-xs">
-            Internal role: {internalRole ?? "—"}
+                <div className="mt-12">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="text-[11px] font-medium text-muted-foreground">
+                      Activity
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {messagesResult.type === "complete" ? `${commentMessages.length} messages` : "Loading…"}
+                    </div>
+                  </div>
+
+                  {messagesResult.type !== "complete" ? (
+                    <div className="text-muted-foreground text-sm">Loading messages…</div>
+                  ) : commentMessages.length === 0 ? (
+                    <div className="text-muted-foreground text-sm">No messages yet.</div>
+                  ) : (
+                    <div className="space-y-8">
+                      {commentMessages.map((msg) => {
+                        const author = getMessageAuthor(msg)
+                        const initial = author.trim() ? author.trim()[0]!.toUpperCase() : "?"
+                        return (
+                          <div key={msg.id} className="flex gap-3">
+                            <div
+                              className="mt-0.5 flex size-8 items-center justify-center rounded-full border bg-muted/10 text-xs font-semibold text-muted-foreground"
+                              aria-hidden="true"
+                            >
+                              {initial}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-[13px] font-semibold text-foreground/90">{author}</div>
+                                <div className="text-muted-foreground text-xs tabular-nums">
+                                  {formatTimestamp(msg.createdAt ?? null)}
+                                </div>
+                              </div>
+                              <div className="mt-2 whitespace-pre-wrap text-[15px] leading-[1.6] text-foreground/90">
+                                {msg.messageText}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-12 border-t border-border/40 pt-8">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold">Reply</div>
+                    <div className="text-muted-foreground text-xs">Cmd/Ctrl + Enter to send</div>
+                  </div>
+
+                  <Textarea
+                    ref={replyRef}
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    placeholder="Write a reply…"
+                    rows={4}
+                    disabled={!canSendReply}
+                  />
+
+                  {replyError ? <div className="mt-2 text-destructive text-xs">{replyError}</div> : null}
+
+                  <div className="mt-3 flex items-center justify-end">
+                    <Button onClick={() => void sendReply()} disabled={!canSendReply || sendingReply}>
+                      <PaperPlaneRightIcon aria-hidden="true" className="size-4" />
+                      {sendingReply ? "Sending…" : "Send"}
+                    </Button>
+                  </div>
+                </div>
+
+                {ticket.status === "resolved" ? (
+                  <div className="mt-12 border-t border-border/40 pt-8">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold">Feedback</div>
+                      <div className="text-muted-foreground text-xs">
+                        {feedbackResult.type === "complete" && feedback ? "Submitted" : "Not submitted"}
+                      </div>
+                    </div>
+
+                    {isClient ? (
+                      <>
+                        <div className="flex items-center gap-1">
+                          {([1, 2, 3, 4, 5] as const).map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              className={cn(
+                                "inline-flex size-9 items-center justify-center rounded-md border transition-colors",
+                                value <= rating
+                                  ? "border-amber-400/40 bg-amber-400/10 text-amber-500"
+                                  : "border-border bg-background text-muted-foreground hover:bg-muted/40",
+                              )}
+                              aria-label={`${value} star`}
+                              onClick={() => setRating(value)}
+                            >
+                              <StarIcon className="size-4" aria-hidden="true" />
+                            </button>
+                          ))}
+                          <span className="text-muted-foreground ml-2 text-xs">{rating}/5</span>
+                        </div>
+
+                        <Input
+                          value={feedbackText}
+                          onChange={(e) => setFeedbackText(e.target.value)}
+                          placeholder="Optional feedback…"
+                          disabled={submittingFeedback}
+                        />
+
+                        {feedbackError ? <div className="mt-2 text-destructive text-xs">{feedbackError}</div> : null}
+
+                        <div className="mt-3 flex items-center justify-end">
+                          <Button onClick={() => void submitFeedback()} disabled={submittingFeedback}>
+                            {submittingFeedback ? "Submitting…" : feedback ? "Update feedback" : "Submit feedback"}
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-sm">
+                        {feedback ? (
+                          <div className="space-y-1">
+                            <div className="text-muted-foreground text-xs">
+                              Rating:{" "}
+                              <span className="font-medium text-foreground">
+                                {typeof feedback.rating === "number" ? feedback.rating : "—"}
+                              </span>
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                              Feedback:{" "}
+                              <span className="font-medium text-foreground">
+                                {isString(feedback.feedbackText) && feedback.feedbackText.trim()
+                                  ? feedback.feedbackText
+                                  : "—"}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-muted-foreground">No feedback yet.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="h-20" />
+              </>
+            )}
           </div>
-        ) : null}
+        </div>
       </div>
+
+      <aside className="hidden h-full w-[280px] shrink-0 border-l border-border/40 bg-muted/10 lg:flex lg:flex-col">
+        <div className="flex min-h-[50px] items-center gap-1 border-b border-border/40 px-4 py-3">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Copy link"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => void copyLink()}
+          >
+            <LinkSimpleIcon className="size-4" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Copy URL"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => void copyLink()}
+          >
+            <CopyIcon className="size-4" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Branches"
+            className="text-muted-foreground hover:text-foreground"
+            disabled
+          >
+            <GitBranchIcon className="size-4" aria-hidden="true" />
+          </Button>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="More"
+            className="text-muted-foreground hover:text-foreground"
+            disabled
+          >
+            <DotsThreeIcon className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+
+        <div className="flex flex-col overflow-y-auto">
+          <SidebarSection title="Properties" border={false}>
+            {ticket ? (
+              <>
+                {clientLabel ? (
+                  <div className="flex min-h-[32px] items-center gap-2.5 px-5 py-1.5 text-[13px] text-foreground/90">
+                    <CubeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                    <span className="truncate">{clientLabel}</span>
+                  </div>
+                ) : null}
+
+                <div className="flex min-h-[32px] items-center gap-2.5 px-5 py-1.5 text-[13px] text-foreground/90">
+                  <CubeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <span className="truncate">{ticketTypeLabel}</span>
+                </div>
+
+                <div className="px-5 py-1.5">
+                  {isInternal ? (
+                    <Select
+                      value={ticket.status ?? "open"}
+                      onValueChange={(value) => {
+                        if (value === "open" || value === "in_progress" || value === "resolved") {
+                          void updateStatus(value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        className={cn(
+                          "group h-8 w-full justify-between rounded-md border-0 bg-transparent px-0 text-[13px] shadow-none hover:bg-muted/40",
+                          "[&>svg]:hidden",
+                          updatingField ? "pointer-events-none opacity-80" : "",
+                        )}
+                        disabled={updatingField !== null}
+                      >
+                        <div className="flex w-full items-center gap-2.5 px-5">
+                          <CircleIcon
+                            className={cn("size-4", getStatusTextColor(ticket.status))}
+                            weight="fill"
+                            aria-hidden="true"
+                          />
+                          <SelectValue>
+                            {() => (
+                              <span className="truncate">
+                                {ticket.status ? formatLabel(ticket.status) : "Status"}
+                              </span>
+                            )}
+                          </SelectValue>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
+                        <SelectGroup>
+                          <SelectItem value="open">Open</SelectItem>
+                          <SelectItem value="in_progress">In progress</SelectItem>
+                          <SelectItem value="resolved">Resolved</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex min-h-[32px] items-center gap-2.5 text-[13px] text-foreground/90">
+                      <CircleIcon
+                        className={cn("size-4", getStatusTextColor(ticket.status))}
+                        weight="fill"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{ticket.status ? formatLabel(ticket.status) : "—"}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-5 py-1.5">
+                  {isInternal ? (
+                    <Select
+                      value={ticket.priority ?? "none"}
+                      onValueChange={(value) => {
+                        if (value === "none") {
+                          void updatePriority(null)
+                          return
+                        }
+                        if (value === "low" || value === "medium" || value === "high" || value === "urgent") {
+                          void updatePriority(value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        className={cn(
+                          "group h-8 w-full justify-between rounded-md border-0 bg-transparent px-0 text-[13px] shadow-none hover:bg-muted/40",
+                          "[&>svg]:hidden",
+                          updatingField ? "pointer-events-none opacity-80" : "",
+                        )}
+                        disabled={updatingField !== null}
+                      >
+                        <div className="flex w-full items-center gap-2.5 px-5">
+                          <CellSignalMediumIcon
+                            className={cn("size-4 -rotate-90", getPriorityTextColor(ticket.priority))}
+                            aria-hidden="true"
+                          />
+                          <SelectValue>
+                            {() => (
+                              <span className={cn("truncate", ticket.priority ? "text-foreground/90" : "text-muted-foreground")}>
+                                {ticket.priority ? formatLabel(ticket.priority) : "Set priority"}
+                              </span>
+                            )}
+                          </SelectValue>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
+                        <SelectGroup>
+                          <SelectItem value="none">Set priority</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex min-h-[32px] items-center gap-2.5 text-[13px] text-foreground/90">
+                      <CellSignalMediumIcon
+                        className={cn("size-4 -rotate-90", getPriorityTextColor(ticket.priority))}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{ticket.priority ? formatLabel(ticket.priority) : "—"}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-5 py-1.5">
+                  {isInternal ? (
+                    <Select
+                      value={ticket.assignedTo ? String(ticket.assignedTo) : "none"}
+                      onValueChange={(value) => {
+                        if (value === "none") {
+                          void updateAssignee(null)
+                          return
+                        }
+                        const parsed = Number(value)
+                        if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return
+                        void updateAssignee(parsed)
+                      }}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        className={cn(
+                          "group h-8 w-full justify-between rounded-md border-0 bg-transparent px-0 text-[13px] shadow-none hover:bg-muted/40",
+                          "[&>svg]:hidden",
+                          updatingField ? "pointer-events-none opacity-80" : "",
+                        )}
+                        disabled={updatingField !== null}
+                      >
+                        <div className="flex w-full items-center gap-2.5 px-5">
+                          <UserCircleIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                          <SelectValue>
+                            {() => (
+                              <span className={cn("truncate", ticket.assignedTo ? "text-foreground/90" : "text-muted-foreground")}>
+                                {ticket.assignedTo ? assigneeLabel : "Assign"}
+                              </span>
+                            )}
+                          </SelectValue>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
+                        <SelectGroup>
+                          <SelectItem value="none">Unassigned</SelectItem>
+                          {teamMembers.map((tm) => (
+                            <SelectItem key={tm.id} value={String(tm.id)}>
+                              {formatTeamMemberLabel(tm.username)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex min-h-[32px] items-center gap-2.5 text-[13px] text-foreground/90">
+                      <UserCircleIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                      <span className="truncate">{assigneeLabel}</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="px-5 py-2 text-sm text-muted-foreground">Loading…</div>
+            )}
+          </SidebarSection>
+
+          <SidebarSection title="Labels" border={false}>
+            <div className="flex min-h-[32px] items-center gap-2.5 px-5 py-1.5 text-[13px] text-muted-foreground opacity-80">
+              <TagIcon className="size-4" aria-hidden="true" />
+              <span className="truncate">Add label</span>
+            </div>
+          </SidebarSection>
+
+          <SidebarSection title="Project" border={false}>
+            <div className="flex min-h-[32px] items-center gap-2.5 px-5 py-1.5 text-[13px] text-muted-foreground opacity-80">
+              <HexagonIcon className="size-4" aria-hidden="true" />
+              <span className="truncate">Add to project</span>
+            </div>
+          </SidebarSection>
+
+          {updateError ? <div className="px-5 py-3 text-destructive text-xs">{updateError}</div> : null}
+          {isInternal ? <div className="px-5 pb-4 text-muted-foreground text-xs">Role: {internalRole ?? "—"}</div> : null}
+        </div>
+      </aside>
     </div>
   )
 }
