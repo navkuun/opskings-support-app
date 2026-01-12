@@ -212,6 +212,7 @@ export function TicketsTable({
   tickets,
   showClient = false,
   pagination,
+  totalCount,
   isLoading = false,
   defaultSort = "createdAtDesc",
   activeTicketId,
@@ -221,6 +222,7 @@ export function TicketsTable({
   tickets: ClientTicketRow[]
   showClient?: boolean
   pagination?: CursorPagination
+  totalCount?: number | null
   isLoading?: boolean
   defaultSort?: "createdAtDesc" | "none"
   activeTicketId?: number | null
@@ -306,6 +308,8 @@ export function TicketsTable({
     pagination?.mode === "cursor" ? pagination.pageIndex : table.getState().pagination.pageIndex
 
   const pageCount = enableClientPaging ? table.getPageCount() : null
+  const rangeStart = total ? pageIndex * pageSize + 1 : 0
+  const rangeEnd = total ? pageIndex * pageSize + tickets.length : 0
 
   const pageRanges = React.useMemo(() => {
     if (!enableClientPaging || pageCount == null) return []
@@ -527,8 +531,17 @@ export function TicketsTable({
               <p className="text-muted-foreground text-sm">
                 Showing{" "}
                 <strong className="font-medium text-foreground">
-                  {total ? pageIndex * pageSize + 1 : 0}-{total ? pageIndex * pageSize + tickets.length : 0}
+                  {rangeStart}-{rangeEnd}
                 </strong>
+                {pagination?.mode === "cursor" ? (
+                  <>
+                    {" "}
+                    of{" "}
+                    <strong className="font-medium text-foreground">
+                      {typeof totalCount === "number" ? totalCount : "—"}
+                    </strong>
+                  </>
+                ) : null}
               </p>
             )}
           </div>

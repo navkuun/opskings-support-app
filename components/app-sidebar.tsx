@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  ClockIcon,
   HouseIcon,
   type IconProps,
   type IconWeight,
@@ -153,6 +154,12 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
             title: "Dashboard",
             href: "/dashboard",
             icon: HouseIcon,
+            iconWeight: "fill",
+          },
+          {
+            title: "Response time",
+            href: "/response-time",
+            icon: ClockIcon,
             iconWeight: "fill",
           },
         ],

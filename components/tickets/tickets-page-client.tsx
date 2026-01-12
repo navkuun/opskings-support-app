@@ -275,6 +275,7 @@ export function TicketsPageClient({
 
   const [pageIndex, setPageIndex] = React.useState(0)
   const [pageCursors, setPageCursors] = React.useState<Array<TicketCursor | null>>([null])
+  const [totalTickets, setTotalTickets] = React.useState<number | null>(null)
 
   React.useEffect(() => {
     setPageIndex(0)
@@ -333,6 +334,87 @@ export function TicketsPageClient({
   const [tickets] = useQuery(queries.tickets.list(queryArgs))
   const hasNextPage = !isSearchMode && tickets.length > PAGE_SIZE
   const pageTickets = React.useMemo(() => tickets.slice(0, PAGE_SIZE), [tickets])
+
+  React.useEffect(() => {
+    if (isSearchMode) {
+      setTotalTickets(null)
+      return
+    }
+
+    const controller = new AbortController()
+    const params = new URLSearchParams()
+
+    if (typeof createdFrom === "number") params.set("from", String(createdFrom))
+    if (typeof createdTo === "number") params.set("to", String(createdTo))
+    if (userType === "internal" && department !== "all") params.set("department", department)
+
+    if (canFilterClients && clientIds.length) {
+      params.set("clientId", clientIds.join(","))
+      params.set("clientIdOp", clientOp)
+    }
+
+    const statuses = statusValues.filter((value) => value !== "any")
+    if (statuses.length) {
+      params.set("status", statuses.join(","))
+      params.set("statusOp", statusOp)
+    }
+
+    const priorities = priorityValues.filter((value) => value !== "any")
+    if (priorities.length) {
+      params.set("priority", priorities.join(","))
+      params.set("priorityOp", priorityOp)
+    }
+
+    if (ticketTypeIds.length) {
+      params.set("ticketTypeId", ticketTypeIds.join(","))
+      params.set("ticketTypeIdOp", ticketTypeOp)
+    }
+
+    if (assignedToIds.length) params.set("assignedTo", assignedToIds.join(","))
+    if (assignedToIds.length || includeUnassigned) {
+      params.set("assignedToOp", assignedToOp)
+    }
+    if (includeUnassigned) params.set("includeUnassigned", "1")
+
+    setTotalTickets(null)
+
+    void fetch(`/api/tickets/count?${params.toString()}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return null
+        const json: unknown = await res.json()
+        if (!json || typeof json !== "object") return null
+        if (!("total" in json)) return null
+        const total = (json as { total?: unknown }).total
+        return typeof total === "number" && Number.isInteger(total) && total >= 0 ? total : null
+      })
+      .then((count) => {
+        if (count == null) return
+        setTotalTickets(count)
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return
+      })
+
+    return () => controller.abort()
+  }, [
+    assignedToIds,
+    assignedToOp,
+    canFilterClients,
+    clientIds,
+    clientOp,
+    createdFrom,
+    createdTo,
+    department,
+    includeUnassigned,
+    isSearchMode,
+    priorityOp,
+    priorityValues,
+    statusOp,
+    statusValues,
+    ticketTypeIds,
+    ticketTypeOp,
+    userType,
+  ])
 
   const showClient = userType === "internal"
 
@@ -619,13 +701,14 @@ export function TicketsPageClient({
           </div>
         ) : null}
 
-        <TicketsTable
-          tickets={tableTickets}
-          showClient={showClient}
-          defaultSort={isSearchMode ? "none" : "createdAtDesc"}
-          onOpenTicket={(ticketId) => router.push(`/tickets/${ticketId}`)}
-          pagination={
-            isSearchMode
+	        <TicketsTable
+	          tickets={tableTickets}
+	          showClient={showClient}
+	          totalCount={totalTickets}
+	          defaultSort={isSearchMode ? "none" : "createdAtDesc"}
+	          onOpenTicket={(ticketId) => router.push(`/tickets/${ticketId}`)}
+	          pagination={
+	            isSearchMode
               ? undefined
               : {
                   mode: "cursor",

@@ -23,6 +23,10 @@ export type ResponseTimeHistogramRow = {
   unknown: number
 }
 
+export type ResponseTimeHistogramResponse = {
+  histogram: ResponseTimeHistogramRow[]
+}
+
 export type ResponseTimeOverdueTicketRow = {
   id: number
   title: string
@@ -121,9 +125,19 @@ function parseHistogramRow(value: unknown): ResponseTimeHistogramRow | null {
   return { bin, total, urgent, high, medium, low, unknown }
 }
 
-function parseOptionalString(value: unknown): string | null {
-  if (value === null) return null
-  return isString(value) ? value : null
+export function parseResponseTimeHistogramResponse(
+  value: unknown,
+): ResponseTimeHistogramResponse | null {
+  if (!isRecord(value)) return null
+  const histogram = value.histogram
+  if (!isUnknownArray(histogram)) return null
+  const parsed: ResponseTimeHistogramRow[] = []
+  for (const row of histogram) {
+    const parsedRow = parseHistogramRow(row)
+    if (!parsedRow) return null
+    parsed.push(parsedRow)
+  }
+  return { histogram: parsed }
 }
 
 function parseOverdueTicketRow(value: unknown): ResponseTimeOverdueTicketRow | null {
@@ -235,4 +249,3 @@ export function parseResponseTimeMetricsResponse(
     overdueTickets: parsedOverdue,
   }
 }
-

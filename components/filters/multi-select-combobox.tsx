@@ -19,6 +19,13 @@ import type { ListFilterOperator } from "@/lib/filters/list-filter"
 import type { FilterOption } from "@/lib/filters/types"
 import { cn } from "@/lib/utils"
 
+function formatSearchPlaceholder(placeholder: string) {
+  const trimmed = placeholder.trim().replace(/…$/, "").trim()
+  if (!trimmed) return "Search…"
+  const normalized = `${trimmed[0]?.toLowerCase() ?? ""}${trimmed.slice(1)}`
+  return `Search ${normalized}…`
+}
+
 export function MultiSelectCombobox({
   items,
   values,
@@ -26,6 +33,8 @@ export function MultiSelectCombobox({
   operator,
   onOperatorChange,
   operatorAriaLabel,
+  showSearch,
+  searchPlaceholder,
   placeholder,
   ariaLabel,
   emptyText,
@@ -37,11 +46,15 @@ export function MultiSelectCombobox({
   operator?: ListFilterOperator
   onOperatorChange?: (next: ListFilterOperator) => void
   operatorAriaLabel?: string
+  showSearch?: boolean
+  searchPlaceholder?: string
   placeholder: string
   ariaLabel: string
   emptyText: string
   className?: string
 }) {
+  const [open, setOpen] = React.useState(false)
+
   const itemByValue = React.useMemo(() => {
     const map = new Map<string, FilterOption>()
     for (const item of items) {
@@ -59,6 +72,7 @@ export function MultiSelectCombobox({
   )
 
   const showOperatorControls = Boolean(operator && onOperatorChange)
+  const showPopupSearch = Boolean(showSearch)
   const isExcludeOperator = operator === "is_not" || operator === "is_none_of"
 
   return (
@@ -67,6 +81,7 @@ export function MultiSelectCombobox({
       multiple
       value={selectedItems}
       onValueChange={(next) => onValuesChange(next.map((item) => item.value))}
+      onOpenChange={(nextOpen) => setOpen(nextOpen)}
     >
       <ComboboxChips
         startAddon={
@@ -92,23 +107,37 @@ export function MultiSelectCombobox({
                   <span className="truncate">{item.label}</span>
                 </ComboboxChip>
               ))}
-              <ComboboxInput
-                aria-label={ariaLabel}
-                placeholder={value.length > 0 ? undefined : placeholder}
-                className="text-xs placeholder:text-muted-foreground/72"
-              />
+              {!showPopupSearch || !open ? (
+                <ComboboxInput
+                  aria-label={ariaLabel}
+                  placeholder={value.length > 0 ? undefined : placeholder}
+                  className="text-xs placeholder:text-muted-foreground/72"
+                />
+              ) : null}
             </>
           )}
         </ComboboxValue>
       </ComboboxChips>
       <ComboboxPopup>
-        {showOperatorControls && operator && onOperatorChange ? (
+        {showPopupSearch || (showOperatorControls && operator && onOperatorChange) ? (
           <div className="sticky top-0 z-10 border-b bg-popover/95 p-1 backdrop-blur-sm">
-            <ListFilterOperatorButtonGroup
-              value={operator}
-              onValueChange={onOperatorChange}
-              ariaLabel={operatorAriaLabel ?? `${ariaLabel} operator`}
-            />
+            {showPopupSearch ? (
+              <div className="mb-1 rounded-md border bg-background px-2 py-1.5">
+                <ComboboxInput
+                  aria-label={searchPlaceholder ?? formatSearchPlaceholder(placeholder)}
+                  placeholder={searchPlaceholder ?? formatSearchPlaceholder(placeholder)}
+                  className="w-full text-xs placeholder:text-muted-foreground/72"
+                  autoFocus
+                />
+              </div>
+            ) : null}
+            {showOperatorControls && operator && onOperatorChange ? (
+              <ListFilterOperatorButtonGroup
+                value={operator}
+                onValueChange={onOperatorChange}
+                ariaLabel={operatorAriaLabel ?? `${ariaLabel} operator`}
+              />
+            ) : null}
           </div>
         ) : null}
         <ComboboxEmpty>{emptyText}</ComboboxEmpty>

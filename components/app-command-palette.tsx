@@ -145,6 +145,7 @@ export function AppCommandPalette() {
           value: "Navigation",
           items: [
             { value: "nav:dashboard", label: "Dashboard", href: "/dashboard" },
+            { value: "nav:response-time", label: "Response time", href: "/response-time" },
             { value: "nav:tickets", label: "Tickets", href: "/tickets" },
           ],
         },
