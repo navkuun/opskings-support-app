@@ -32,6 +32,8 @@ export function TicketsOverTimeChart({
   const id = React.useId()
   const [series, setSeries] = React.useState<"both" | "created" | "resolved">("both")
 
+  const latestMonthKey = data[data.length - 1]?.monthKey ?? null
+
   const years = React.useMemo(() => {
     const unique = new Set<string>()
     for (const row of data) {
@@ -60,10 +62,11 @@ export function TicketsOverTimeChart({
   }, [data, year])
 
   const forecastMonthKey = React.useMemo(() => {
-    const lastMonthKey = filteredData[filteredData.length - 1]?.monthKey
-    if (!lastMonthKey) return null
-    return addMonthsToMonthKey(lastMonthKey, 1)
-  }, [filteredData])
+    const lastVisibleMonthKey = filteredData[filteredData.length - 1]?.monthKey ?? null
+    if (!latestMonthKey || !lastVisibleMonthKey) return null
+    if (latestMonthKey !== lastVisibleMonthKey) return null
+    return addMonthsToMonthKey(latestMonthKey, 1)
+  }, [filteredData, latestMonthKey])
 
   const chartData = React.useMemo(() => {
     if (!forecastMonthKey || filteredData.length === 0) return filteredData

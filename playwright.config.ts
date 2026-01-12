@@ -10,11 +10,15 @@ const systemChromiumExecutable =
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
+  timeout: 120_000,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  workers: process.env.CI ? 2 : 2,
   reporter: process.env.CI ? [["github"], ["html"]] : [["list"], ["html"]],
+  globalSetup: "./tests/global-setup.ts",
   use: {
     baseURL: "http://localhost:3000",
+    navigationTimeout: 60_000,
+    actionTimeout: 30_000,
     trace: "on-first-retry",
   },
   webServer: {

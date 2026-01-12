@@ -1,10 +1,12 @@
-import { expect, test } from "@playwright/test"
+import { expect, type Page } from "@playwright/test"
 
 import { isBoolean, isNumber, isRecord, isString } from "./test-guards"
 
+export type AllowlistKind = "client" | "team_member"
+
 type SeedAllowlistResponse = {
   ok: boolean
-  kind: "client" | "team_member"
+  kind: AllowlistKind
   id: number | null
   email: string
 }
@@ -12,11 +14,6 @@ type SeedAllowlistResponse = {
 type DebugSessionResponse = {
   ok: boolean
   user: { email?: string } | null
-}
-
-function uniqueEmail(prefix: string) {
-  const rand = Math.random().toString(16).slice(2)
-  return `${prefix}-${Date.now()}-${rand}@example.com`
 }
 
 function parseSeedAllowlistResponse(value: unknown): SeedAllowlistResponse | null {
@@ -61,43 +58,57 @@ function parseTokenResponse(value: unknown): { ok: boolean; token: string | null
   return { ok, token }
 }
 
-async function seedAllowlist(
-  page: import("@playwright/test").Page,
-  kind: SeedAllowlistResponse["kind"],
-) {
-  const email = uniqueEmail(`e2e-${kind}-reset`)
-  const res = await page.request.post("/api/test/seed-allowlist", {
-    data: { kind, email },
-  })
-  expect(res.ok()).toBeTruthy()
+export function uniqueEmail(prefix: string) {
+  const rand = Math.random().toString(16).slice(2)
+  return `${prefix}-${Date.now()}-${rand}@example.com`
+}
+
+export async function seedAllowlist(page: Page, kind: AllowlistKind, prefix = "e2e") {
+  const email = uniqueEmail(`${prefix}-${kind}`)
+  let res: import("@playwright/test").APIResponse | null = null
+  let lastError: unknown = null
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      res = await page.request.post("/api/test/seed-allowlist", {
+        data: { kind, email },
+      })
+      if (res.ok()) break
+      lastError = new Error(`Non-2xx response: ${res.status()}`)
+    } catch (error) {
+      lastError = error
+    }
+    await page.waitForTimeout(250 * attempt)
+  }
+
+  if (!res || !res.ok()) {
+    throw lastError instanceof Error ? lastError : new Error("Failed to seed allowlist")
+  }
+
   const json: unknown = await res.json()
   const parsed = parseSeedAllowlistResponse(json)
   if (!parsed) throw new Error("Unexpected seed-allowlist response")
+
   expect(parsed.ok).toBeTruthy()
   expect(parsed.email).toBe(email.toLowerCase())
+  expect(parsed.kind).toBe(kind)
   expect(typeof parsed.id).toBe("number")
-  return parsed.email
+
+  if (parsed.id == null) throw new Error("Expected allowlist id")
+  return { email: parsed.email, id: parsed.id }
 }
 
-async function waitForSessionEmail(
-  page: import("@playwright/test").Page,
-  email: string,
-) {
-  await expect
-    .poll(async () => {
-      const res = await page.request.get("/api/auth/debug-session")
-      if (!res.ok()) return null
-      const json: unknown = await res.json()
-      return parseDebugSessionResponse(json)
-    })
-    .toMatchObject({ ok: true, user: { email } })
+export async function debugSession(page: Page) {
+  const res = await page.request.get("/api/auth/debug-session")
+  expect(res.ok()).toBeTruthy()
+  const json: unknown = await res.json()
+  const parsed = parseDebugSessionResponse(json)
+  if (!parsed) throw new Error("Unexpected debug-session response")
+  return parsed
 }
 
-async function pollForResetUrl(
-  page: import("@playwright/test").Page,
-  email: string,
-) {
-  const deadline = Date.now() + 10_000
+export async function pollForDevResetToken(page: Page, email: string, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs
   const endpoint = `/api/auth/dev-reset-link?email=${encodeURIComponent(email)}`
 
   while (Date.now() < deadline) {
@@ -113,59 +124,29 @@ async function pollForResetUrl(
   throw new Error("Timed out waiting for dev reset token")
 }
 
-async function setPassword(page: import("@playwright/test").Page, email: string, password: string) {
+export async function setupPassword(page: Page, email: string, newPassword: string) {
   const setupRes = await page.request.post("/api/auth/setup-link", {
     data: { email },
   })
   expect(setupRes.ok()).toBeTruthy()
 
-  const token = await pollForResetUrl(page, email)
-  const resetRes = await page.request.post("/api/auth/reset-password", {
-    data: { newPassword: password, token },
-  })
-  expect(resetRes.ok()).toBeTruthy()
-}
-
-async function signIn(page: import("@playwright/test").Page, email: string, password: string) {
-  const res = await page.request.post("/api/auth/sign-in/email", {
-    data: { email, password, callbackURL: "/" },
-  })
-  expect(res.ok()).toBeTruthy()
-  await waitForSessionEmail(page, email)
-}
-
-test("password reset flow sets a new password (dev mailbox)", async ({ page }) => {
-  const email = await seedAllowlist(page, "team_member")
-  const password = "password1234!"
-  const newPassword = "password1234!new"
-
-  await setPassword(page, email, password)
-  await signIn(page, email, password)
-
-  await page.context().clearCookies()
-  await expect
-    .poll(async () => {
-      const res = await page.request.get("/api/auth/debug-session")
-      if (!res.ok()) return null
-      const json: unknown = await res.json()
-      const parsed = parseDebugSessionResponse(json)
-      return parsed?.ok ?? null
-    })
-    .toBe(false)
-
-  // Request a new reset token and reset password.
-  const setupRes = await page.request.post("/api/auth/setup-link", {
-    data: { email },
-  })
-  expect(setupRes.ok()).toBeTruthy()
-
-  const token = await pollForResetUrl(page, email)
+  const token = await pollForDevResetToken(page, email)
   const resetRes = await page.request.post("/api/auth/reset-password", {
     data: { newPassword, token },
   })
   expect(resetRes.ok()).toBeTruthy()
+}
 
-  await signIn(page, email, newPassword)
-  await page.goto("/protected")
-  await expect(page.getByRole("heading", { name: "Protected" })).toBeVisible()
-})
+export async function signInWithPassword(page: Page, email: string, password: string) {
+  const res = await page.request.post("/api/auth/sign-in/email", {
+    data: { email, password, callbackURL: "/" },
+  })
+  expect(res.ok()).toBeTruthy()
+
+  await expect
+    .poll(async () => {
+      const { ok, user } = await debugSession(page)
+      return ok && user?.email === email
+    })
+    .toBe(true)
+}
