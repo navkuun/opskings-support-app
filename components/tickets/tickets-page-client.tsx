@@ -174,11 +174,11 @@ export function TicketsPageClient({
     [assignedToOp, assignedToParam],
   )
 
-  const [ticketTypes, ticketTypesResult] = useQuery(queries.ticketTypes.list({ limit: 200 }))
+  const [ticketTypes] = useQuery(queries.ticketTypes.list({ limit: 200 }))
   const [teamMembers, teamMembersResult] = useQuery(
     queries.teamMembers.internalList({ limit: 200 }),
   )
-  const [clients, clientsResult] = useQuery(queries.clients.list({ limit: 200 }))
+  const [clients] = useQuery(queries.clients.list({ limit: 200 }))
 
   const defaultDepartment = React.useMemo(() => {
     if (userType !== "internal" || !teamMemberId) return null
@@ -186,12 +186,20 @@ export function TicketsPageClient({
     return match?.department?.trim() ? match.department : null
   }, [teamMemberId, teamMembers, userType])
 
-  const department = React.useMemo(() => {
+  const department = React.useMemo<string | null>(() => {
     if (userType !== "internal") return "all"
-    if (deptParam === "all") return "all"
-    if (deptParam && deptParam.trim()) return deptParam
+
+    const dept = (deptParam ?? "").trim()
+    if (dept === "all") return "all"
+    if (dept) return dept
+
+    const shouldAutoDefaultDept = typeof teamMemberId === "number" && teamMemberId > 0
+    if (shouldAutoDefaultDept && teamMembersResult.type !== "complete") {
+      return null
+    }
+
     return defaultDepartment ?? "all"
-  }, [defaultDepartment, deptParam, userType])
+  }, [defaultDepartment, deptParam, teamMemberId, teamMembersResult.type, userType])
 
   const departmentOptions = React.useMemo(() => {
     const values = ticketTypes
@@ -240,7 +248,7 @@ export function TicketsPageClient({
       userType,
       from,
       to,
-      department,
+      department ?? "__pending_department__",
       statusOp,
       statusValues.join("|"),
       priorityOp,
@@ -287,13 +295,14 @@ export function TicketsPageClient({
   const queryArgs = React.useMemo(() => {
     const statuses = statusValues.filter((value) => value !== "any")
     const priorities = priorityValues.filter((value) => value !== "any")
-    const deptValue = userType === "internal" && department !== "all" ? department : undefined
+    const deptValue =
+      userType === "internal" && department && department !== "all" ? department : undefined
     const clientFilter = canFilterClients && clientIds.length ? clientIds : undefined
     const assignedToOpValue =
       assignedToIds.length || includeUnassigned ? assignedToOp : undefined
 
     return {
-      limit: isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
+      limit: department == null ? 0 : isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
       cursor: cursor ?? undefined,
       from: createdFrom,
       to: createdTo,
@@ -331,11 +340,16 @@ export function TicketsPageClient({
     clientIds,
   ])
 
-  const [tickets] = useQuery(queries.tickets.list(queryArgs))
+  const [tickets, ticketsResult] = useQuery(queries.tickets.list(queryArgs))
   const hasNextPage = !isSearchMode && tickets.length > PAGE_SIZE
   const pageTickets = React.useMemo(() => tickets.slice(0, PAGE_SIZE), [tickets])
 
   React.useEffect(() => {
+    if (department == null) {
+      setTotalTickets(null)
+      return
+    }
+
     if (isSearchMode) {
       setTotalTickets(null)
       return
@@ -648,10 +662,7 @@ export function TicketsPageClient({
     setPageIndex((prev) => (prev <= 0 ? 0 : prev - 1))
   }, [isSearchMode])
 
-  const isLoading =
-    ticketTypesResult.type !== "complete" ||
-    (userType === "internal" &&
-      (teamMembersResult.type !== "complete" || clientsResult.type !== "complete"))
+  const ticketsLoading = department == null || ticketsResult.type !== "complete"
 
   return (
     <div className="w-full pb-8">
@@ -719,7 +730,7 @@ export function TicketsPageClient({
                   onPreviousPage: handlePreviousPage,
                 }
           }
-          isLoading={isLoading}
+          isLoading={ticketsLoading}
         />
       </div>
 

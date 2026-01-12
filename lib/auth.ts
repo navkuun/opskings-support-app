@@ -14,7 +14,15 @@ import { sendEmailVerificationEmail, sendPasswordResetEmail } from "@/lib/email/
 
 function getOptionalEnv(name: string) {
   const value = process.env[name]
-  return value && value.trim() ? value.trim() : null
+  if (!value || !value.trim()) return null
+  const trimmed = value.trim()
+  const first = trimmed[0]
+  const last = trimmed[trimmed.length - 1]
+  if ((first === `"` && last === `"`) || (first === `'` && last === `'`)) {
+    const unquoted = trimmed.slice(1, -1).trim()
+    return unquoted ? unquoted : null
+  }
+  return trimmed
 }
 
 function getBaseURL() {

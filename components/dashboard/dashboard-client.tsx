@@ -106,8 +106,8 @@ export function DashboardClient() {
     [priorityOp, priorityParam],
   )
 
-  const [ticketTypes, ticketTypesResult] = useQuery(queries.ticketTypes.list({ limit: 200 }))
-  const [teamMembers, teamMembersResult] = useQuery(queries.teamMembers.list({ limit: 200 }))
+  const [ticketTypes] = useQuery(queries.ticketTypes.list({ limit: 200 }))
+  const [teamMembers] = useQuery(queries.teamMembers.list({ limit: 200 }))
 
   const ticketTypeNameById = React.useMemo(() => {
     const map = new Map<number, string>()
@@ -278,10 +278,7 @@ export function DashboardClient() {
     }
   }, [metrics, months, ticketTypeNameById])
 
-  const isLoading =
-    metricsLoading ||
-    ticketTypesResult.type !== "complete" ||
-    teamMembersResult.type !== "complete"
+  const isLoading = metricsLoading
 
   const handleFromChange = React.useCallback(
     (next: string) => updateSearchParams(router, searchParams, { from: next }),

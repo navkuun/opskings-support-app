@@ -12,12 +12,16 @@ import { mutators } from "@/zero/mutators"
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
+  const hasCookieHeader = !!request.headers.get("cookie")?.trim()
   const session = await getAuth().api.getSession({
     headers: request.headers,
   })
 
   const userID = session?.user?.id
   if (!userID) {
+    if (process.env.NODE_ENV === "production") {
+      console.warn("[zero/mutate] Missing session", { hasCookieHeader })
+    }
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

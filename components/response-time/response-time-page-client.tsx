@@ -115,11 +115,9 @@ export function ResponseTimePageClient() {
     [priorityOp, priorityParam],
   )
 
-  const [teamMembers, teamMembersResult] = useQuery(
-    queries.teamMembers.internalList({ limit: 200 }),
-  )
-  const [clients, clientsResult] = useQuery(queries.clients.list({ limit: 200 }))
-  const [ticketTypes, ticketTypesResult] = useQuery(queries.ticketTypes.list({ limit: 200 }))
+  const [teamMembers] = useQuery(queries.teamMembers.internalList({ limit: 200 }))
+  const [clients] = useQuery(queries.clients.list({ limit: 200 }))
+  const [ticketTypes] = useQuery(queries.ticketTypes.list({ limit: 200 }))
 
   const [metrics, setMetrics] = React.useState<ResponseTimeMetricsResponse | null>(null)
   const [metricsError, setMetricsError] = React.useState<string | null>(null)
@@ -401,11 +399,7 @@ export function ResponseTimePageClient() {
     to,
   ])
 
-  const isLoading =
-    metricsLoading ||
-    teamMembersResult.type !== "complete" ||
-    clientsResult.type !== "complete" ||
-    ticketTypesResult.type !== "complete"
+  const isLoading = metricsLoading
 
   const handleFromChange = React.useCallback(
     (next: string) => updateSearchParams(router, searchParams, { from: next }),

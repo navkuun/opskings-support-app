@@ -84,7 +84,11 @@ export async function POST(request: Request) {
   // Prefer the configured Better Auth base URL so callback URLs match what Better Auth accepts
   // (and so we don't depend on proxy header configuration).
   const origin = (() => {
-    const configured = process.env.BETTER_AUTH_URL?.trim()
+    const raw = process.env.BETTER_AUTH_URL?.trim()
+    const configured =
+      raw && ((raw.startsWith(`"`) && raw.endsWith(`"`)) || (raw.startsWith(`'`) && raw.endsWith(`'`)))
+        ? raw.slice(1, -1).trim()
+        : raw
     if (configured) {
       try {
         return new URL(configured).origin

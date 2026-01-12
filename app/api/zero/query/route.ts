@@ -12,6 +12,7 @@ import { schema } from "@/zero/schema"
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
+  const hasCookieHeader = !!request.headers.get("cookie")?.trim()
   let ctx: ZeroContext = { userID: "anon", userType: "anon" }
   try {
     const session = await getAuth().api.getSession({
@@ -42,9 +43,16 @@ export async function POST(request: Request) {
         clientId: appUser.clientId ?? null,
         teamMemberId: appUser.teamMemberId ?? null,
       }
+    } else if (process.env.NODE_ENV === "production") {
+      console.warn("[zero/query] Missing session; treating as anon", {
+        hasCookieHeader,
+      })
     }
   } catch {
     // Treat as anonymous for now.
+    if (process.env.NODE_ENV === "production") {
+      console.warn("[zero/query] Session lookup failed; treating as anon", { hasCookieHeader })
+    }
   }
 
   const result = await handleQueryRequest(
