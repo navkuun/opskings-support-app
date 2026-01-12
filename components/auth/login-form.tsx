@@ -232,11 +232,17 @@ export function LoginForm() {
           <form onSubmit={onContinue} className="space-y-3">
             <InputGroup>
               <InputGroupInput
+                id="email"
+                name="email"
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
                 type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 required
                 disabled={isSubmitting || step !== "email"}
               />
@@ -265,6 +271,8 @@ export function LoginForm() {
             <form onSubmit={onSignInWithPassword} className="space-y-3">
               <InputGroup>
                 <InputGroupInput
+                  id="password"
+                  name="password"
                   placeholder="Password"
                   type="password"
                   value={password}
