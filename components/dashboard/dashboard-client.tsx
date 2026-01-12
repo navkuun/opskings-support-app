@@ -363,7 +363,6 @@ export function DashboardClient() {
             {metricsError}
           </div>
         ) : null}
-
         <CardGroup className="grid grid-cols-1 divide-y divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
           <KpiCard
             title="Total tickets"
@@ -408,6 +407,7 @@ export function DashboardClient() {
           statusRows={computed.priorityStatusRows}
           isLoading={isLoading}
         />
+
       </div>
     </div>
   )

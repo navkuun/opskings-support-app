@@ -9,6 +9,7 @@ import {
   HouseIcon,
   type IconProps,
   type IconWeight,
+  UsersIcon,
   TicketIcon,
 } from "@phosphor-icons/react"
 
@@ -167,6 +168,12 @@ export function AppSidebar({
             title: "Response time",
             href: "/response-time",
             icon: ClockIcon,
+            iconWeight: "fill",
+          },
+          {
+            title: "Teams",
+            href: "/teams",
+            icon: UsersIcon,
             iconWeight: "fill",
           },
         ],
