@@ -7,7 +7,6 @@ import {
   CheckIcon,
   CubeIcon,
   BuildingsIcon,
-  DotsThreeIcon,
   MagnifyingGlassIcon,
   UserIcon,
   XIcon,

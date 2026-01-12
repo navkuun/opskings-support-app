@@ -538,7 +538,7 @@ export function TicketsTable({
                     {" "}
                     of{" "}
                     <strong className="font-medium text-foreground">
-                      {typeof totalCount === "number" ? totalCount : "—"}
+                      {typeof totalCount === "number" ? totalCount : "…"}
                     </strong>
                   </>
                 ) : null}
