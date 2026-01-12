@@ -5,6 +5,7 @@ import { z } from "zod"
 import { db } from "@/lib/db"
 import { clients } from "@/lib/db/schema/clients"
 import { teamMembers } from "@/lib/db/schema/team-members"
+import { isE2eTestModeEnabled } from "@/lib/e2e"
 
 export const runtime = "nodejs"
 
@@ -32,7 +33,7 @@ function nameFromEmail(email: string) {
 }
 
 export async function POST(request: Request) {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && !isE2eTestModeEnabled()) {
     return new Response("Not found", { status: 404 })
   }
 
@@ -107,4 +108,3 @@ export async function POST(request: Request) {
     email,
   })
 }
-

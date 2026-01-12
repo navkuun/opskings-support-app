@@ -10,6 +10,7 @@ import { authDb } from "@/lib/db/auth"
 import * as authSchema from "@/lib/db/schema/better-auth"
 import { setPasswordResetLink } from "@/lib/auth-dev-mailbox"
 import { setEmailVerificationLink } from "@/lib/auth-dev-verify-mailbox"
+import { isE2eTestModeEnabled } from "@/lib/e2e"
 import { sendEmailVerificationEmail, sendPasswordResetEmail } from "@/lib/email/resend"
 
 function getOptionalEnv(name: string) {
@@ -41,12 +42,13 @@ export function getAuth() {
   const resendApiKey = getOptionalEnv("RESEND_API_KEY")
   const resendFrom = getOptionalEnv("RESEND_FROM")
   const resendReplyTo = getOptionalEnv("RESEND_REPLY_TO")
+  const e2eMode = isE2eTestModeEnabled()
 
-  if (process.env.NODE_ENV === "production" && !secret) {
+  if (process.env.NODE_ENV === "production" && !e2eMode && !secret) {
     throw new Error("BETTER_AUTH_SECRET is required in production.")
   }
 
-  if (process.env.NODE_ENV === "production" && (!resendApiKey || !resendFrom)) {
+  if (process.env.NODE_ENV === "production" && !e2eMode && (!resendApiKey || !resendFrom)) {
     throw new Error(
       "RESEND_API_KEY and RESEND_FROM are required in production for transactional emails.",
     )
@@ -83,12 +85,14 @@ export function getAuth() {
       sendOnSignIn: false,
       autoSignInAfterVerification: false,
       sendVerificationEmail: async ({ user, url, token }) => {
-        if (process.env.NODE_ENV !== "production") {
+        if (process.env.NODE_ENV !== "production" || isE2eTestModeEnabled()) {
           setEmailVerificationLink({ email: user.email, url, token })
           console.info(
             `[Better Auth][dev] Email verification link for ${user.email}: ${url}`,
           )
         }
+
+        if (isE2eTestModeEnabled()) return
 
         void sendEmailVerificationEmail({
           to: user.email,
@@ -103,12 +107,14 @@ export function getAuth() {
       requireEmailVerification: false,
       autoSignIn: false,
       sendResetPassword: async ({ user, url, token }) => {
-        if (process.env.NODE_ENV !== "production") {
+        if (process.env.NODE_ENV !== "production" || isE2eTestModeEnabled()) {
           setPasswordResetLink({ email: user.email, url, token })
           console.info(
             `[Better Auth][dev] Password reset link for ${user.email}: ${url}`,
           )
         }
+
+        if (isE2eTestModeEnabled()) return
 
         if (process.env.NODE_ENV === "production") {
           await sendPasswordResetEmail({

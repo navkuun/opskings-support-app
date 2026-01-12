@@ -37,6 +37,12 @@ This folder contains Playwright end-to-end tests (`pnpm test:e2e`) and shared he
   - `api-contract.spec.ts`
     - Verifies internal users can call the dashboard + response-time metrics APIs and receive the expected high-level shape.
     - Verifies client users are forbidden from those internal metrics endpoints.
+  - `kpi-ui.spec.ts`
+    - Verifies KPI cards exit their loading/gray state after the metrics request resolves.
+
+- `tests/e2e/perf/`
+  - `ux-timings.spec.ts`
+    - Measures end-to-end UX timings (KPI ready, charts rendered, tickets pagination) and optionally enforces budgets via env vars.
 
 - `tests/e2e/tickets/`
   - `create-and-reply.spec.ts`
@@ -67,6 +73,26 @@ This folder contains Playwright end-to-end tests (`pnpm test:e2e`) and shared he
 
 ```bash
 pnpm test:e2e
+```
+
+Performance runs (production server):
+
+```bash
+pnpm test:e2e:perf
+```
+
+Note: `test:e2e:perf` runs a local production server with `E2E_TEST_MODE=true` so that dev/test-only endpoints
+used by the Playwright helpers (seed allowlist + dev reset token) are available. Don’t set this env var in real deployments.
+
+Optional budgets (milliseconds):
+
+```bash
+PERF_BUDGET_DASHBOARD_KPIS_MS=500
+PERF_BUDGET_DASHBOARD_CHARTS_MS=800
+PERF_BUDGET_RESPONSE_TIME_KPIS_MS=500
+PERF_BUDGET_RESPONSE_TIME_CHARTS_MS=800
+PERF_BUDGET_TICKETS_INITIAL_MS=500
+PERF_BUDGET_TICKETS_PAGINATION_MS=300
 ```
 
 Notes:
