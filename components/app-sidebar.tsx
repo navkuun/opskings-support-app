@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  BuildingsIcon,
   ClockIcon,
   HouseIcon,
   type IconProps,
@@ -165,7 +166,7 @@ export function AppSidebar({
             iconWeight: "fill",
           },
           {
-            title: "Response time",
+            title: "Response",
             href: "/response-time",
             icon: ClockIcon,
             iconWeight: "fill",
@@ -174,6 +175,12 @@ export function AppSidebar({
             title: "Teams",
             href: "/teams",
             icon: UsersIcon,
+            iconWeight: "fill",
+          },
+          {
+            title: "Clients",
+            href: "/clients",
+            icon: BuildingsIcon,
             iconWeight: "fill",
           },
         ],
