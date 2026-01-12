@@ -640,15 +640,6 @@ export function CreateTicketDialog({
             />
           ) : null}
 
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="h-6 w-7 rounded-md border border-transparent bg-muted/30 text-muted-foreground hover:bg-muted/40"
-            aria-label="More properties"
-            disabled
-          >
-            <DotsThreeIcon className="size-4" aria-hidden="true" />
-          </Button>
         </div>
 
         <div className="mt-2 flex items-center justify-between border-t px-5 py-3.5">
