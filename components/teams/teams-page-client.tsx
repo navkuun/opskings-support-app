@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 
 import { TeamsFilterRow, type TeamsFilterState } from "@/components/teams/teams-filter-row"
 import { TeamsTable } from "@/components/teams/teams-table"
+import { TopPerformersChart } from "@/components/teams/top-performers-chart"
 import { isRecord, isString } from "@/lib/type-guards"
 import {
   defaultTeamPerformanceFilters,
@@ -224,6 +225,7 @@ export function TeamsPageClient() {
         ) : null}
 
         <TeamsTable rows={filteredRows} isLoading={loading} />
+        <TopPerformersChart rows={filteredRows} isLoading={loading} />
       </div>
     </div>
   )

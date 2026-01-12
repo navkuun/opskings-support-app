@@ -21,6 +21,8 @@ import {
   type ResponseTimeMetricsResponse,
   parseResponseTimeHistogramResponse,
   parseResponseTimeMetricsResponse,
+  parseResponseTimeOverdueResponse,
+  type ResponseTimeOverdueTicketRow,
 } from "@/lib/response-time/metrics"
 import { isRecord, isString } from "@/lib/type-guards"
 import { queries } from "@/zero/queries"
@@ -127,6 +129,14 @@ export function ResponseTimePageClient() {
     null,
   )
   const [histogramLoading, setHistogramLoading] = React.useState(false)
+
+  const [overdueTickets, setOverdueTickets] = React.useState<
+    readonly ResponseTimeOverdueTicketRow[]
+  >([])
+  const [overdueTotal, setOverdueTotal] = React.useState(0)
+  const [overduePageIndex, setOverduePageIndex] = React.useState(0)
+  const overduePageSize = 20
+  const [overdueLoading, setOverdueLoading] = React.useState(false)
 
   React.useEffect(() => {
     const controller = new AbortController()
@@ -290,6 +300,107 @@ export function ResponseTimePageClient() {
     to,
   ])
 
+  React.useEffect(() => {
+    setOverduePageIndex(0)
+  }, [
+    assignedToOpParam,
+    assignedToParam,
+    clientOpParam,
+    clientParam,
+    from,
+    priorityOpParam,
+    priorityParam,
+    ticketTypeOpParam,
+    ticketTypeParam,
+    to,
+  ])
+
+  React.useEffect(() => {
+    const controller = new AbortController()
+
+    async function run() {
+      setOverdueLoading(true)
+
+      const params = new URLSearchParams()
+      if (from.trim()) params.set("from", from)
+      if (to.trim()) params.set("to", to)
+      if (assignedToParam && assignedToParam !== "any") {
+        params.set("assignedTo", assignedToParam)
+      }
+      if (assignedToOpParam) {
+        params.set("assignedToOp", assignedToOpParam)
+      }
+      if (clientParam && clientParam !== "any") {
+        params.set("clientId", clientParam)
+      }
+      if (clientOpParam) {
+        params.set("clientIdOp", clientOpParam)
+      }
+      if (ticketTypeParam && ticketTypeParam !== "any") {
+        params.set("ticketTypeId", ticketTypeParam)
+      }
+      if (ticketTypeOpParam) {
+        params.set("ticketTypeIdOp", ticketTypeOpParam)
+      }
+      if (priorityParam && priorityParam !== "any") {
+        params.set("priority", priorityParam)
+      }
+      if (priorityOpParam) {
+        params.set("priorityOp", priorityOpParam)
+      }
+      params.set("limit", String(overduePageSize))
+      params.set("offset", String(overduePageIndex * overduePageSize))
+
+      try {
+        const res = await fetch(`/api/response-time/overdue?${params.toString()}`, {
+          signal: controller.signal,
+        })
+
+        if (!res.ok) {
+          setOverdueTickets([])
+          setOverdueTotal(0)
+          setOverdueLoading(false)
+          return
+        }
+
+        const json: unknown = await res.json()
+        const parsed = parseResponseTimeOverdueResponse(json)
+        if (!parsed) {
+          setOverdueTickets([])
+          setOverdueTotal(0)
+          setOverdueLoading(false)
+          return
+        }
+
+        setOverdueTickets(parsed.rows)
+        setOverdueTotal(parsed.total)
+        setOverdueLoading(false)
+      } catch (error) {
+        if (controller.signal.aborted) return
+        console.error("[response-time] Failed to load overdue tickets", error)
+        setOverdueTickets([])
+        setOverdueTotal(0)
+        setOverdueLoading(false)
+      }
+    }
+
+    void run()
+    return () => controller.abort()
+  }, [
+    assignedToOpParam,
+    assignedToParam,
+    clientOpParam,
+    clientParam,
+    from,
+    overduePageIndex,
+    overduePageSize,
+    priorityOpParam,
+    priorityParam,
+    ticketTypeOpParam,
+    ticketTypeParam,
+    to,
+  ])
+
   const isLoading =
     metricsLoading ||
     teamMembersResult.type !== "complete" ||
@@ -376,7 +487,7 @@ export function ResponseTimePageClient() {
 
   const resolvedTotal = metrics?.resolvedTotal ?? 0
   const expectedTotal = metrics?.expectedTotal ?? 0
-  const overdueTotal = metrics?.overdueTotal ?? 0
+  const overdueStatTotal = metrics?.overdueTotal ?? 0
 
   return (
     <div className="w-full pb-8">
@@ -427,7 +538,7 @@ export function ResponseTimePageClient() {
           />
           <KpiCard
             title="Overdue"
-            value={`${formatCompactNumber(overdueTotal)} (${formatRate(overdueTotal, expectedTotal)})`}
+            value={`${formatCompactNumber(overdueStatTotal)} (${formatRate(overdueStatTotal, expectedTotal)})`}
             description="Compared to ticket type expected hours."
             isLoading={isLoading}
           />
@@ -443,7 +554,14 @@ export function ResponseTimePageClient() {
           <ResponseTimePriorityStatsCard rows={metrics?.byPriority ?? []} isLoading={isLoading} />
         </div>
 
-        <OverdueTicketsTable tickets={metrics?.overdueTickets ?? []} isLoading={isLoading} />
+        <OverdueTicketsTable
+          tickets={overdueTickets}
+          totalCount={overdueTotal}
+          pageIndex={overduePageIndex}
+          pageSize={overduePageSize}
+          onPageIndexChange={setOverduePageIndex}
+          isLoading={overdueLoading}
+        />
 
         <div className="text-xs text-muted-foreground">
           Avg expected:{" "}

@@ -61,35 +61,58 @@ function formatDelta(value: number) {
 
 export function OverdueTicketsTable({
   tickets,
+  totalCount,
+  pageIndex,
+  pageSize,
+  onPageIndexChange,
   isLoading,
 }: {
   tickets: readonly ResponseTimeOverdueTicketRow[]
+  totalCount?: number
+  pageIndex?: number
+  pageSize?: number
+  onPageIndexChange?: (next: number) => void
   isLoading?: boolean
 }) {
   const router = useRouter()
-  const [pageIndex, setPageIndex] = React.useState(0)
+
+  const isControlledPaging =
+    typeof totalCount === "number" &&
+    typeof pageIndex === "number" &&
+    typeof pageSize === "number" &&
+    typeof onPageIndexChange === "function"
+
+  const internalPageSize = DEFAULT_PAGE_SIZE
+  const internalTotal = tickets.length
+  const [internalPageIndex, setInternalPageIndex] = React.useState(0)
 
   React.useEffect(() => {
-    setPageIndex(0)
-  }, [tickets])
+    if (isControlledPaging) return
+    setInternalPageIndex(0)
+  }, [isControlledPaging, tickets])
 
-  const pageSize = DEFAULT_PAGE_SIZE
-  const total = tickets.length
-  const maxPageIndex = Math.max(0, Math.ceil(total / pageSize) - 1)
-  const clampedPageIndex = Math.min(pageIndex, maxPageIndex)
+  const effectivePageSize = isControlledPaging ? pageSize : internalPageSize
+  const effectiveTotal = isControlledPaging ? totalCount : internalTotal
+  const maxPageIndex = Math.max(0, Math.ceil(effectiveTotal / effectivePageSize) - 1)
+  const effectivePageIndex = isControlledPaging ? pageIndex : internalPageIndex
+  const clampedPageIndex = Math.min(effectivePageIndex, maxPageIndex)
 
   React.useEffect(() => {
-    if (clampedPageIndex !== pageIndex) {
-      setPageIndex(clampedPageIndex)
+    if (clampedPageIndex !== effectivePageIndex) {
+      if (isControlledPaging) {
+        onPageIndexChange(clampedPageIndex)
+      } else {
+        setInternalPageIndex(clampedPageIndex)
+      }
     }
-  }, [clampedPageIndex, pageIndex])
+  }, [clampedPageIndex, effectivePageIndex, isControlledPaging, onPageIndexChange])
 
-  const startIndex = clampedPageIndex * pageSize
-  const endIndexExclusive = Math.min(total, startIndex + pageSize)
-  const pageTickets = React.useMemo(
-    () => tickets.slice(startIndex, endIndexExclusive),
-    [endIndexExclusive, startIndex, tickets],
-  )
+  const startIndex = clampedPageIndex * effectivePageSize
+  const endIndexExclusive = Math.min(effectiveTotal, startIndex + effectivePageSize)
+  const pageTickets = React.useMemo(() => {
+    if (isControlledPaging) return tickets
+    return tickets.slice(startIndex, endIndexExclusive)
+  }, [endIndexExclusive, isControlledPaging, startIndex, tickets])
 
   return (
     <Frame className="w-full">
@@ -116,7 +139,7 @@ export function OverdueTicketsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && total === 0 ? (
+            {isLoading && effectiveTotal === 0 ? (
               <TableRow>
                 <TableCell className="h-24 text-center text-muted-foreground" colSpan={9}>
                   Loading overdue tickets…
@@ -190,9 +213,9 @@ export function OverdueTicketsTable({
           <div className="text-muted-foreground text-xs">
             Showing{" "}
             <span className="font-mono tabular-nums">
-              {total ? startIndex + 1 : 0}-{endIndexExclusive}
+              {effectiveTotal ? startIndex + 1 : 0}-{endIndexExclusive}
             </span>{" "}
-            of <span className="font-mono tabular-nums">{total.toLocaleString()}</span>
+            of <span className="font-mono tabular-nums">{effectiveTotal.toLocaleString()}</span>
           </div>
           <Pagination className="justify-end">
             <PaginationContent>
@@ -202,7 +225,11 @@ export function OverdueTicketsTable({
                   render={
                     <Button
                       disabled={clampedPageIndex <= 0}
-                      onClick={() => setPageIndex((prev) => Math.max(0, prev - 1))}
+                      onClick={() => {
+                        const next = Math.max(0, clampedPageIndex - 1)
+                        if (isControlledPaging) onPageIndexChange(next)
+                        else setInternalPageIndex(next)
+                      }}
                       size="sm"
                       variant="outline"
                     />
@@ -215,7 +242,11 @@ export function OverdueTicketsTable({
                   render={
                     <Button
                       disabled={clampedPageIndex >= maxPageIndex}
-                      onClick={() => setPageIndex((prev) => Math.min(maxPageIndex, prev + 1))}
+                      onClick={() => {
+                        const next = Math.min(maxPageIndex, clampedPageIndex + 1)
+                        if (isControlledPaging) onPageIndexChange(next)
+                        else setInternalPageIndex(next)
+                      }}
                       size="sm"
                       variant="outline"
                     />

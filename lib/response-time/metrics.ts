@@ -41,6 +41,11 @@ export type ResponseTimeOverdueTicketRow = {
   deltaHours: number
 }
 
+export type ResponseTimeOverdueResponse = {
+  total: number
+  rows: ResponseTimeOverdueTicketRow[]
+}
+
 export type ResponseTimeMetricsResponse = {
   resolvedTotal: number
   expectedTotal: number
@@ -180,6 +185,27 @@ function parseOverdueTicketRow(value: unknown): ResponseTimeOverdueTicketRow | n
     actualHours,
     deltaHours,
   }
+}
+
+export function parseResponseTimeOverdueResponse(
+  value: unknown,
+): ResponseTimeOverdueResponse | null {
+  if (!isRecord(value)) return null
+  const total = value.total
+  const rows = value.rows
+
+  if (!isNumber(total)) return null
+  if (!Number.isInteger(total) || total < 0) return null
+  if (!isUnknownArray(rows)) return null
+
+  const parsedRows: ResponseTimeOverdueTicketRow[] = []
+  for (const row of rows) {
+    const parsed = parseOverdueTicketRow(row)
+    if (!parsed) return null
+    parsedRows.push(parsed)
+  }
+
+  return { total, rows: parsedRows }
 }
 
 export function parseResponseTimeMetricsResponse(
