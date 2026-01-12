@@ -7,20 +7,16 @@ import { useQuery, useZero } from "@rocicorp/zero/react"
 import {
   ArrowLeftIcon,
   CaretRightIcon,
-  CellSignalMediumIcon,
-  CircleIcon,
-  CopyIcon,
+  CheckCircleIcon,
   CubeIcon,
-  DotsThreeIcon,
-  GitBranchIcon,
+  FlagIcon,
   HexagonIcon,
-  LinkSimpleIcon,
   PaperPlaneRightIcon,
   StarIcon,
-  TagIcon,
   UserCircleIcon,
 } from "@phosphor-icons/react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -123,10 +119,37 @@ function SidebarSection({
   )
 }
 
+function SidebarPropertyRow({
+  label,
+  icon,
+  value,
+}: {
+  label: string
+  icon: React.ReactNode
+  value: React.ReactNode
+}) {
+  return (
+    <div className="flex min-h-[34px] items-center justify-between gap-3 px-5 py-1.5">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {icon}
+        <span className="whitespace-nowrap">{label}</span>
+      </div>
+      <div className="flex justify-end min-w-0">{value}</div>
+    </div>
+  )
+}
+
+function SidebarValueBadge({ children }: { children: React.ReactNode }) {
+  return (
+    <Badge variant="outline" className="h-6 max-w-[150px] min-w-0 px-2.5 text-xs">
+      <span className="min-w-0 truncate">{children}</span>
+    </Badge>
+  )
+}
+
 export function TicketDetailsPageClient({
   ticketId,
   userType,
-  internalRole,
   teamMemberId,
   clientId,
 }: {
@@ -405,17 +428,6 @@ export function TicketDetailsPageClient({
   const descriptionMessage = messages[0] ?? null
   const commentMessages = messages.length > 1 ? messages.slice(1) : []
 
-  const copyLink = React.useCallback(async () => {
-    if (typeof window === "undefined") return
-    if (!("clipboard" in navigator)) return
-
-    try {
-      await navigator.clipboard.writeText(window.location.href)
-    } catch {
-      // ignore
-    }
-  }, [])
-
   return (
     <div className="flex w-full flex-1 min-h-0 bg-background text-foreground overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -626,248 +638,190 @@ export function TicketDetailsPageClient({
       </div>
 
       <aside className="hidden h-full w-[280px] shrink-0 border-l border-border/40 bg-muted/10 lg:flex lg:flex-col">
-        <div className="flex min-h-[50px] items-center gap-1 border-b border-border/40 px-4 py-3">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Copy link"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => void copyLink()}
-          >
-            <LinkSimpleIcon className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Copy URL"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => void copyLink()}
-          >
-            <CopyIcon className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Branches"
-            className="text-muted-foreground hover:text-foreground"
-            disabled
-          >
-            <GitBranchIcon className="size-4" aria-hidden="true" />
-          </Button>
-          <div className="flex-1" />
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="More"
-            className="text-muted-foreground hover:text-foreground"
-            disabled
-          >
-            <DotsThreeIcon className="size-4" aria-hidden="true" />
-          </Button>
-        </div>
-
         <div className="flex flex-col overflow-y-auto">
           <SidebarSection title="Properties" border={false}>
             {ticket ? (
               <>
                 {clientLabel ? (
-                  <div className="flex min-h-[32px] items-center gap-2.5 px-5 py-1.5 text-[13px] text-foreground/90">
-                    <CubeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-                    <span className="truncate">{clientLabel}</span>
-                  </div>
+                  <SidebarPropertyRow
+                    label="Client"
+                    icon={<CubeIcon className="size-4 text-muted-foreground" aria-hidden="true" />}
+                    value={
+                      <SidebarValueBadge>{clientLabel}</SidebarValueBadge>
+                    }
+                  />
                 ) : null}
 
-                <div className="flex min-h-[32px] items-center gap-2.5 px-5 py-1.5 text-[13px] text-foreground/90">
-                  <CubeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="truncate">{ticketTypeLabel}</span>
-                </div>
+                <SidebarPropertyRow
+                  label="Type"
+                  icon={<HexagonIcon className="size-4 text-muted-foreground" aria-hidden="true" />}
+                  value={
+                    <SidebarValueBadge>{ticketTypeLabel}</SidebarValueBadge>
+                  }
+                />
 
-                <div className="px-5 py-1.5">
-                  {isInternal ? (
-                    <Select
-                      value={ticket.status ?? "open"}
-                      onValueChange={(value) => {
-                        if (value === "open" || value === "in_progress" || value === "resolved") {
-                          void updateStatus(value)
-                        }
-                      }}
-                    >
-                      <SelectTrigger
-                        size="sm"
-                        className={cn(
-                          "group h-8 w-full justify-between rounded-md border-0 bg-transparent px-0 text-[13px] shadow-none hover:bg-muted/40",
-                          "[&>svg]:hidden",
-                          updatingField ? "pointer-events-none opacity-80" : "",
-                        )}
-                        disabled={updatingField !== null}
+                <SidebarPropertyRow
+                  label="Status"
+                  icon={
+                    <CheckCircleIcon
+                      className={cn("size-4", getStatusTextColor(ticket.status))}
+                      aria-hidden="true"
+                    />
+                  }
+                  value={
+                    isInternal ? (
+                      <Select
+                        value={ticket.status ?? "open"}
+                        onValueChange={(value) => {
+                          if (value === "open" || value === "in_progress" || value === "resolved") {
+                            void updateStatus(value)
+                          }
+                        }}
                       >
-                        <div className="flex w-full items-center gap-2.5 px-5">
-                          <CircleIcon
-                            className={cn("size-4", getStatusTextColor(ticket.status))}
-                            weight="fill"
-                            aria-hidden="true"
-                          />
-                          <SelectValue>
+                        <SelectTrigger
+                          size="sm"
+                          className={cn(
+                            "h-6 max-w-[150px] rounded-full px-2.5 py-0 shadow-none [&>svg]:hidden",
+                            updatingField ? "pointer-events-none opacity-80" : "",
+                          )}
+                          disabled={updatingField !== null}
+                        >
+                          <SelectValue className="flex-none">
                             {() => (
                               <span className="truncate">
-                                {ticket.status ? formatLabel(ticket.status) : "Status"}
+                                {formatLabel(ticket.status ?? "open")}
                               </span>
                             )}
                           </SelectValue>
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
-                        <SelectGroup>
-                          <SelectItem value="open">Open</SelectItem>
-                          <SelectItem value="in_progress">In progress</SelectItem>
-                          <SelectItem value="resolved">Resolved</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="flex min-h-[32px] items-center gap-2.5 text-[13px] text-foreground/90">
-                      <CircleIcon
-                        className={cn("size-4", getStatusTextColor(ticket.status))}
-                        weight="fill"
-                        aria-hidden="true"
-                      />
-                      <span className="truncate">{ticket.status ? formatLabel(ticket.status) : "—"}</span>
-                    </div>
-                  )}
-                </div>
+                        </SelectTrigger>
+                        <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
+                          <SelectGroup>
+                            <SelectItem value="open">Open</SelectItem>
+                            <SelectItem value="in_progress">In progress</SelectItem>
+                            <SelectItem value="resolved">Resolved</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <SidebarValueBadge>
+                        {ticket.status ? formatLabel(ticket.status) : "—"}
+                      </SidebarValueBadge>
+                    )
+                  }
+                />
 
-                <div className="px-5 py-1.5">
-                  {isInternal ? (
-                    <Select
-                      value={ticket.priority ?? "none"}
-                      onValueChange={(value) => {
-                        if (value === "none") {
-                          void updatePriority(null)
-                          return
-                        }
-                        if (value === "low" || value === "medium" || value === "high" || value === "urgent") {
-                          void updatePriority(value)
-                        }
-                      }}
-                    >
-                      <SelectTrigger
-                        size="sm"
-                        className={cn(
-                          "group h-8 w-full justify-between rounded-md border-0 bg-transparent px-0 text-[13px] shadow-none hover:bg-muted/40",
-                          "[&>svg]:hidden",
-                          updatingField ? "pointer-events-none opacity-80" : "",
-                        )}
-                        disabled={updatingField !== null}
+                <SidebarPropertyRow
+                  label="Priority"
+                  icon={
+                    <FlagIcon
+                      className={cn("size-4", getPriorityTextColor(ticket.priority))}
+                      aria-hidden="true"
+                    />
+                  }
+                  value={
+                    isInternal ? (
+                      <Select
+                        value={ticket.priority ?? "none"}
+                        onValueChange={(value) => {
+                          if (value === "none") {
+                            void updatePriority(null)
+                            return
+                          }
+                          if (value === "low" || value === "medium" || value === "high" || value === "urgent") {
+                            void updatePriority(value)
+                          }
+                        }}
                       >
-                        <div className="flex w-full items-center gap-2.5 px-5">
-                          <CellSignalMediumIcon
-                            className={cn("size-4 -rotate-90", getPriorityTextColor(ticket.priority))}
-                            aria-hidden="true"
-                          />
-                          <SelectValue>
+                        <SelectTrigger
+                          size="sm"
+                          className={cn(
+                            "h-6 max-w-[150px] rounded-full px-2.5 py-0 shadow-none [&>svg]:hidden",
+                            updatingField ? "pointer-events-none opacity-80" : "",
+                          )}
+                          disabled={updatingField !== null}
+                        >
+                          <SelectValue className="flex-none">
                             {() => (
-                              <span className={cn("truncate", ticket.priority ? "text-foreground/90" : "text-muted-foreground")}>
-                                {ticket.priority ? formatLabel(ticket.priority) : "Set priority"}
+                              <span className="truncate">
+                                {ticket.priority ? formatLabel(ticket.priority) : "—"}
                               </span>
                             )}
                           </SelectValue>
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
-                        <SelectGroup>
-                          <SelectItem value="none">Set priority</SelectItem>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="urgent">Urgent</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="flex min-h-[32px] items-center gap-2.5 text-[13px] text-foreground/90">
-                      <CellSignalMediumIcon
-                        className={cn("size-4 -rotate-90", getPriorityTextColor(ticket.priority))}
-                        aria-hidden="true"
-                      />
-                      <span className="truncate">{ticket.priority ? formatLabel(ticket.priority) : "—"}</span>
-                    </div>
-                  )}
-                </div>
+                        </SelectTrigger>
+                        <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
+                          <SelectGroup>
+                            <SelectItem value="none">No priority</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <SidebarValueBadge>
+                        {ticket.priority ? formatLabel(ticket.priority) : "—"}
+                      </SidebarValueBadge>
+                    )
+                  }
+                />
 
-                <div className="px-5 py-1.5">
-                  {isInternal ? (
-                    <Select
-                      value={ticket.assignedTo ? String(ticket.assignedTo) : "none"}
-                      onValueChange={(value) => {
-                        if (value === "none") {
-                          void updateAssignee(null)
-                          return
-                        }
-                        const parsed = Number(value)
-                        if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return
-                        void updateAssignee(parsed)
-                      }}
-                    >
-                      <SelectTrigger
-                        size="sm"
-                        className={cn(
-                          "group h-8 w-full justify-between rounded-md border-0 bg-transparent px-0 text-[13px] shadow-none hover:bg-muted/40",
-                          "[&>svg]:hidden",
-                          updatingField ? "pointer-events-none opacity-80" : "",
-                        )}
-                        disabled={updatingField !== null}
+                <SidebarPropertyRow
+                  label="Assignee"
+                  icon={<UserCircleIcon className="size-4 text-muted-foreground" aria-hidden="true" />}
+                  value={
+                    isInternal ? (
+                      <Select
+                        value={ticket.assignedTo ? String(ticket.assignedTo) : "none"}
+                        onValueChange={(value) => {
+                          if (value === "none") {
+                            void updateAssignee(null)
+                            return
+                          }
+                          const parsed = Number(value)
+                          if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return
+                          void updateAssignee(parsed)
+                        }}
                       >
-                        <div className="flex w-full items-center gap-2.5 px-5">
-                          <UserCircleIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-                          <SelectValue>
+                        <SelectTrigger
+                          size="sm"
+                          className={cn(
+                            "h-6 max-w-[150px] rounded-full px-2.5 py-0 shadow-none [&>svg]:hidden",
+                            updatingField ? "pointer-events-none opacity-80" : "",
+                          )}
+                          disabled={updatingField !== null}
+                        >
+                          <SelectValue className="flex-none">
                             {() => (
-                              <span className={cn("truncate", ticket.assignedTo ? "text-foreground/90" : "text-muted-foreground")}>
-                                {ticket.assignedTo ? assigneeLabel : "Assign"}
+                              <span className="truncate">
+                                {ticket.assignedTo ? assigneeLabel : "Unassigned"}
                               </span>
                             )}
                           </SelectValue>
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
-                        <SelectGroup>
-                          <SelectItem value="none">Unassigned</SelectItem>
-                          {teamMembers.map((tm) => (
-                            <SelectItem key={tm.id} value={String(tm.id)}>
-                              {formatTeamMemberLabel(tm.username)}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="flex min-h-[32px] items-center gap-2.5 text-[13px] text-foreground/90">
-                      <UserCircleIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-                      <span className="truncate">{assigneeLabel}</span>
-                    </div>
-                  )}
-                </div>
+                        </SelectTrigger>
+                        <SelectContent align="start" alignItemWithTrigger={false} className="min-w-[220px]">
+                          <SelectGroup>
+                            <SelectItem value="none">Unassigned</SelectItem>
+                            {teamMembers.map((tm) => (
+                              <SelectItem key={tm.id} value={String(tm.id)}>
+                                {formatTeamMemberLabel(tm.username)}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <SidebarValueBadge>{assigneeLabel}</SidebarValueBadge>
+                    )
+                  }
+                />
               </>
             ) : (
               <div className="px-5 py-2 text-sm text-muted-foreground">Loading…</div>
             )}
           </SidebarSection>
 
-          <SidebarSection title="Labels" border={false}>
-            <div className="flex min-h-[32px] items-center gap-2.5 px-5 py-1.5 text-[13px] text-muted-foreground opacity-80">
-              <TagIcon className="size-4" aria-hidden="true" />
-              <span className="truncate">Add label</span>
-            </div>
-          </SidebarSection>
-
-          <SidebarSection title="Project" border={false}>
-            <div className="flex min-h-[32px] items-center gap-2.5 px-5 py-1.5 text-[13px] text-muted-foreground opacity-80">
-              <HexagonIcon className="size-4" aria-hidden="true" />
-              <span className="truncate">Add to project</span>
-            </div>
-          </SidebarSection>
-
           {updateError ? <div className="px-5 py-3 text-destructive text-xs">{updateError}</div> : null}
-          {isInternal ? <div className="px-5 pb-4 text-muted-foreground text-xs">Role: {internalRole ?? "—"}</div> : null}
         </div>
       </aside>
     </div>
