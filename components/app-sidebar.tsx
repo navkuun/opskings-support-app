@@ -93,19 +93,24 @@ function CrownSidebarMenuLink({
   )
 }
 
-export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+  className,
+  initialUserType,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & {
+  initialUserType?: "internal" | "client" | null
+}) {
   const pathname = usePathname()
   const { data: session } = authClient.useSession()
-  const [userType, setUserType] = React.useState<"internal" | "client" | null>(null)
+  const [userType, setUserType] = React.useState<"internal" | "client" | null>(
+    initialUserType ?? null,
+  )
 
   React.useEffect(() => {
     let cancelled = false
 
     async function loadUserType() {
-      if (!session?.user) {
-        setUserType(null)
-        return
-      }
+      if (!session?.user || userType) return
 
       try {
         const res = await fetch("/api/app-user/me", { cache: "no-store" })
@@ -124,12 +129,14 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
     return () => {
       cancelled = true
     }
-  }, [session?.user])
+  }, [session?.user, userType])
 
-  const homeHref = userType === "client" ? "/tickets" : "/dashboard"
-  const homeLabel = userType === "client" ? "Your Tickets" : "Dashboard"
+  const homeHref = userType === "client" ? "/tickets" : userType === "internal" ? "/dashboard" : "/tickets"
+  const homeLabel =
+    userType === "client" ? "Your Tickets" : userType === "internal" ? "Dashboard" : "Loading"
 
   const navGroups = React.useMemo<NavGroup[]>(() => {
+    if (!userType) return []
     if (userType === "client") {
       return [
         {
@@ -212,7 +219,8 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
       </SidebarHeader>
 
       <SidebarContent className="pt-2">
-        {navGroups.map((group, idx) => (
+        {userType ? (
+          navGroups.map((group, idx) => (
           <SidebarGroup
             key={group.label}
             className="px-0 py-2 group-data-[collapsible=icon]:px-2"
@@ -236,7 +244,10 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
               <SidebarSeparator className="mx-0 mt-2" />
             ) : null}
           </SidebarGroup>
-        ))}
+          ))
+        ) : (
+          <div className="px-4 py-3 text-xs text-sidebar-foreground/40">Loading…</div>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-sidebar-border/60 border-t px-4 py-4 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-2">
