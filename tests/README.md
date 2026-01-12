@@ -42,7 +42,7 @@ This folder contains Playwright end-to-end tests (`pnpm test:e2e`) and shared he
 
 - `tests/e2e/perf/`
   - `ux-timings.spec.ts`
-    - Measures end-to-end UX timings (KPI ready, charts rendered, tickets pagination) and optionally enforces budgets via env vars.
+    - Measures end-to-end UX timings (KPI ready, charts rendered, tickets pagination/filter) and optionally enforces budgets via env vars.
 
 - `tests/e2e/tickets/`
   - `create-and-reply.spec.ts`
@@ -59,6 +59,9 @@ This folder contains Playwright end-to-end tests (`pnpm test:e2e`) and shared he
 - `tests/helpers/zero.ts`
   - Helper to call `/api/zero/query` (transform) and return a typed AST.
   - AST utilities used to assert tenant restrictions (`client_id` filters, correlated subqueries).
+
+- `tests/helpers/tickets.ts`
+  - Seeds tickets through `/api/test/seed-tickets` (used by perf tests to ensure pagination/filter scenarios exist).
 
 - `tests/helpers/test-guards.ts`
   - Runtime type guards for parsing JSON test responses.
@@ -93,6 +96,7 @@ PERF_BUDGET_RESPONSE_TIME_KPIS_MS=500
 PERF_BUDGET_RESPONSE_TIME_CHARTS_MS=800
 PERF_BUDGET_TICKETS_INITIAL_MS=500
 PERF_BUDGET_TICKETS_PAGINATION_MS=300
+PERF_BUDGET_TICKETS_FILTERED_MS=1000
 ```
 
 Notes:

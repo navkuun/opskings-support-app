@@ -34,6 +34,7 @@ import { queries } from "@/zero/queries"
 
 const DEFAULT_FROM = "2025-01-01"
 const DEFAULT_TO = "2025-11-30"
+const DEFAULT_LATEST_MONTH_KEY = DEFAULT_TO.slice(0, 7)
 
 function updateSearchParams(
   router: ReturnType<typeof useRouter>,
@@ -394,7 +395,11 @@ export function DashboardClient() {
         </CardGroup>
 
         <div className="grid gap-4 lg:grid-cols-2 lg:gap-x-0">
-          <TicketsOverTimeChart data={computed.ticketsOverTime} isLoading={isLoading} />
+          <TicketsOverTimeChart
+            data={computed.ticketsOverTime}
+            isLoading={isLoading}
+            latestMonthKey={DEFAULT_LATEST_MONTH_KEY}
+          />
           <TicketsByTypeChart rows={computed.typeRows} isLoading={isLoading} />
         </div>
 

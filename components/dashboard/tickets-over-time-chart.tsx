@@ -25,14 +25,16 @@ import { isNumber, isRecord, isString } from "@/lib/type-guards"
 export function TicketsOverTimeChart({
   data,
   isLoading,
+  latestMonthKey,
 }: {
   data: Array<{ monthKey: string; monthLabel: string; created: number; resolved: number }>
   isLoading?: boolean
+  latestMonthKey?: string | null
 }) {
   const id = React.useId()
   const [series, setSeries] = React.useState<"both" | "created" | "resolved">("both")
 
-  const latestMonthKey = data[data.length - 1]?.monthKey ?? null
+  const effectiveLatestMonthKey = latestMonthKey ?? (data[data.length - 1]?.monthKey ?? null)
 
   const years = React.useMemo(() => {
     const unique = new Set<string>()
@@ -63,10 +65,10 @@ export function TicketsOverTimeChart({
 
   const forecastMonthKey = React.useMemo(() => {
     const lastVisibleMonthKey = filteredData[filteredData.length - 1]?.monthKey ?? null
-    if (!latestMonthKey || !lastVisibleMonthKey) return null
-    if (latestMonthKey !== lastVisibleMonthKey) return null
-    return addMonthsToMonthKey(latestMonthKey, 1)
-  }, [filteredData, latestMonthKey])
+    if (!effectiveLatestMonthKey || !lastVisibleMonthKey) return null
+    if (effectiveLatestMonthKey !== lastVisibleMonthKey) return null
+    return addMonthsToMonthKey(effectiveLatestMonthKey, 1)
+  }, [effectiveLatestMonthKey, filteredData])
 
   const chartData = React.useMemo(() => {
     if (!forecastMonthKey || filteredData.length === 0) return filteredData

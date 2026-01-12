@@ -296,15 +296,20 @@ export function TicketsPageClient({
   const queryArgs = React.useMemo(() => {
     const statuses = statusValues.filter((value) => value !== "any")
     const priorities = priorityValues.filter((value) => value !== "any")
+    const isPendingDepartment = userType === "internal" && department == null
     const deptValue =
-      userType === "internal" && department && department !== "all" ? department : undefined
+      userType === "internal" && department && department !== "all"
+        ? department
+        : isPendingDepartment
+          ? "__pending_department__"
+          : undefined
     const clientFilter = canFilterClients && clientIds.length ? clientIds : undefined
     const assignedToOpValue =
       assignedToIds.length || includeUnassigned ? assignedToOp : undefined
 
     return {
-      limit: department == null ? 0 : isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
-      cursor: cursor ?? undefined,
+      limit: isPendingDepartment ? 1 : isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
+      cursor: isPendingDepartment ? undefined : cursor ?? undefined,
       from: createdFrom,
       to: createdTo,
       department: deptValue,

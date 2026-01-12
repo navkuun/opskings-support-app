@@ -104,6 +104,7 @@ export function RiZeroProvider({
     () => ({
       userID,
       context: ctx,
+      appID: process.env.NEXT_PUBLIC_ZERO_APP_ID ?? "opskings_support_app",
       cacheURL: process.env.NEXT_PUBLIC_ZERO_CACHE_URL ?? "http://localhost:4848",
       // Zero retries connecting for 1 minute by default; increase this so short outages
       // (server restarts, laptop sleep/wake, brief network drops) don't push us to `disconnected`.

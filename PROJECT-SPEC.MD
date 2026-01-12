@@ -258,6 +258,187 @@ Create a simplified view for client users that shows:
 
 ---
 
+# README Content (What I Built)
+
+This section is the write-up I would include in `README.md` for the take-home.
+
+## 1) How to set up and run the project
+
+### Prereqs
+
+- Node.js 22+
+- `pnpm`
+- Postgres 16+ (must have `wal_level=logical` for Zero replication)
+
+### Local Postgres (Docker)
+
+```bash
+docker run -d --name zero-postgres \
+  -e POSTGRES_PASSWORD="password" \
+  -p 5432:5432 \
+  postgres:16-alpine \
+  postgres -c wal_level=logical
+```
+
+### Install + migrate
+
+```bash
+pnpm i
+pnpm db:migrate
+```
+
+### Environment variables
+
+Create `.env.local` (or `.env`) with at least:
+
+```bash
+# Database
+DATABASE_URL="postgres://postgres:password@localhost:5432/postgres"
+
+# Better Auth
+BETTER_AUTH_URL="http://localhost:3000"
+BETTER_AUTH_SECRET="dev-secret"
+
+# Zero
+ZERO_UPSTREAM_DB="postgres://postgres:password@localhost:5432/postgres"
+ZERO_QUERY_URL="http://localhost:3000/api/zero/query"
+ZERO_MUTATE_URL="http://localhost:3000/api/zero/mutate"
+NEXT_PUBLIC_ZERO_CACHE_URL="http://localhost:4848"
+ZERO_QUERY_FORWARD_COOKIES="true"
+ZERO_MUTATE_FORWARD_COOKIES="true"
+```
+
+### Run Zero locally
+
+This project runs the Zero cache via `zero-cache-dev`:
+
+```bash
+pnpm zero:cache
+```
+
+Zero continuously replicates Postgres into a local SQLite replica (default `zero.db`) and serves the websocket API at `http://localhost:4848`.
+
+### Run the app
+
+```bash
+pnpm dev
+```
+
+## 2) Tech stack used
+
+- Next.js 16 (App Router) + TypeScript (strict)
+- Postgres (Coolify deployment) + Drizzle ORM (schema + migrations)
+- Better Auth (cookie-based sessions)
+- RociCorp Zero (local-first sync) + `zero-cache` for replication + websocket queries
+- UI: Tailwind CSS v4, Base UI primitives, shadcn/ui components, Phosphor icons, Recharts
+- Testing: Playwright E2E + small perf harness
+
+## 3) Assumptions made
+
+- **Allowlisted sign-in flow (no public signup):**
+  - If an email exists in `clients` or `team_members` but has no Better Auth user yet, the login flow sends a “set password” link.
+  - This matches typical internal tools: access is granted by an admin “allowlisting” someone in the DB first.
+- **Zero is the right fit here:**
+  - The app is analytics-heavy and filter-driven, and a local replica + reactive queries dramatically reduces roundtrips versus refetching via REST/TanStack Query.
+- **Filters as a visible row (not hidden in a dropdown):**
+  - Filters are always visible to reduce interaction cost (one click instead of two).
+- **Default internal role mapping:**
+  - `team_members.department in ('finance', 'technical')` defaults to `internal_role = manager` (can be overridden later).
+- **RLS implementation approach:**
+  - I implemented “RLS semantics” at the query/mutator layer using Zero (see sections 6–7), instead of database-level Postgres RLS policies.
+  - For a real production system, I would still add Postgres RLS as defense-in-depth (see “Future improvements”).
+
+## 4) Future improvements
+
+- Admin console (for `internal_role=admin`) to manage clients/team members, disable accounts, and set roles.
+- True multi-tenant onboarding: client signup → `pending` until approved by an admin.
+- Push notifications / realtime alerts for new tickets and overdue SLA breaches.
+- Better search: server-side indexed search (e.g. trigram + ranking) or RAG search with reranking for long ticket histories.
+- AI “ticket brief”: summarization + suggested next actions/SOP lookup for agents.
+- Analytics scalability: rollups/materialized views for time-series metrics and SLA histograms at higher scale.
+- Defense-in-depth auth: add DB-level Postgres RLS and keep Zero permissions as an additional layer.
+
+## 5) Which indexes you added and why
+
+These are defined in `lib/db/schema/*`:
+
+- `tickets`
+  - `idx_tickets_client_id`, `idx_tickets_client_id_created_at`: common filters and “tickets for client, newest first”.
+  - `idx_tickets_assigned_to`, `idx_tickets_assigned_to_created_at`: agent inbox + analytics by assignee.
+  - `idx_tickets_ticket_type_id`: filter/group by ticket type.
+  - `idx_tickets_status`, `idx_tickets_priority`: filter quickly by status/priority.
+  - `idx_tickets_created_at`: date-range filtering + time series.
+  - `idx_tickets_resolved_at`: resolution-time analytics.
+- `ticket_messages`
+  - `idx_ticket_messages_ticket_id`: “messages for ticket”.
+  - `idx_ticket_messages_ticket_id_created_at`: “messages for ticket ordered by time”.
+- `payments`
+  - `idx_payments_client_id`: payments per client.
+  - `idx_payments_paid_at`: paid-at sorting for payment history.
+- `auth.app_users`
+  - `idx_app_users_account_status`, `idx_app_users_user_type`, `idx_app_users_client_id`, `idx_app_users_team_member_id`: fast request-time authorization checks (map session → app user → role/tenant).
+- Better Auth tables
+  - `session_userId_idx`, `account_userId_idx`, `verification_identifier_idx`: speed up session/account/verification lookups.
+
+## 6) How I implemented “RLS” for multi-tenant access (client isolation vs internal full access)
+
+I enforced tenant isolation in two places:
+
+1) **Zero queries (read access):** `zero/queries.ts`
+- Each query receives a server-computed `ctx` containing:
+  - `userType: "client" | "internal"`
+  - `clientId` (for client users)
+  - `teamMemberId` + `internalRole` (for internal users)
+- Client isolation is implemented by injecting restrictive predicates:
+  - `tickets.list`: always adds `where clientId = <ctx.clientId>` for clients.
+  - `ticket_messages.byTicket`: adds `whereExists(ticket where clientId = <ctx.clientId>)`.
+  - `ticket_feedback.byTicket`: adds `whereExists(ticket where clientId = <ctx.clientId>)`.
+  - `clients.*`: forces `id = <ctx.clientId>` for clients.
+  - `payments.byClient`: forces `clientId = <ctx.clientId>` for clients.
+
+2) **Server endpoints (non-Zero reads):** `app/api/**/route.ts`
+- Internal-only analytics endpoints validate the session and enforce `app_users.userType === "internal"`.
+
+This achieves the same isolation guarantees described in the prompt (client users can only ever read their own tenant rows), but enforced at the application/query layer rather than Postgres RLS policies.
+
+## 7) How I handled “RLS” with Better Auth
+
+- Better Auth issues a cookie session token on sign-in.
+- The Zero cache websocket and query/mutate endpoints rely on that same cookie:
+  - Browser includes the Better Auth cookie when connecting to `NEXT_PUBLIC_ZERO_CACHE_URL`.
+  - `zero-cache` forwards cookies to `ZERO_QUERY_URL` / `ZERO_MUTATE_URL`.
+- On the server:
+  - `app/api/zero/context` and `app/api/zero/query` call `getAuth().api.getSession({ headers })`.
+  - We look up `auth.app_users` to convert `session.user.id` into an authorization context (`ZeroContext`).
+  - That `ZeroContext` drives query restrictions in `zero/queries.ts` and server-side checks in `zero/mutators.ts`.
+
+## 8) Any materialized views or database optimizations
+
+- No materialized views in this take-home (the dataset is ~40k tickets and the indexed queries were sufficient).
+- If the dataset grows significantly, the first optimizations I’d add:
+  - Monthly rollup table/materialized view for “tickets created/resolved per month”.
+  - Precomputed SLA/resolution-time histograms by priority and ticket type.
+  - Incremental refresh strategy (nightly + partial refresh for “recent” data).
+
+## 9) Performance testing results
+
+- I added a Playwright “UX timings” perf suite: `pnpm test:e2e:perf`.
+  - It runs a local production build (`pnpm build && pnpm start`).
+  - It records both **cold-ish** (first navigation after login + first Zero websocket traffic) and **warm** timings (after a client-side navigation back to the page).
+  - Budgets can be enforced with env vars like `PERF_BUDGET_DASHBOARD_KPIS_MS=500`.
+- Results are environment-dependent; the report is the source of truth for the measured milliseconds.
+
+## 10) How the solution would scale to 100k+ tickets
+
+- **Tickets list scales well**:
+  - Cursor pagination + a replicated local SQLite query engine keeps “next page” fast even as the upstream grows.
+- **Filter-heavy UX scales well**:
+  - Zero clients evaluate queries locally against the replica; filters become local query changes instead of server roundtrips.
+- **Analytics endpoints**:
+  - With indexes (section 5), server-side aggregations remain fast at 100k rows.
+  - At higher scale (hundreds of thousands to millions), move heavy metrics to rollups/materialized views and/or incremental aggregation tables.
+
+
 ## EXTRA NOTES
 
 - Remember ZERO cannot work with SSR in nextjs so read Zero react documentation on how to do this properly without SSR.
