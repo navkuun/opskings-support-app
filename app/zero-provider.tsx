@@ -1,6 +1,6 @@
 "use client"
 
-import { ZeroProvider } from "@rocicorp/zero/react"
+import { ZeroProvider, useZero } from "@rocicorp/zero/react"
 import type { ZeroOptions } from "@rocicorp/zero"
 import * as React from "react"
 import { ThemeProvider } from "next-themes"
@@ -11,6 +11,71 @@ import { schema } from "@/zero/schema"
 import type { ZeroContext } from "@/zero/context"
 import { authClient } from "@/lib/auth-client"
 import { isNumber, isRecord, isString } from "@/lib/type-guards"
+import { preloadMainPages } from "@/lib/zero-preload"
+
+function scheduleIdle(callback: () => void) {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(() => callback())
+    return () => {
+      if (typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(id)
+      }
+    }
+  }
+
+  const timeout = window.setTimeout(callback, 250)
+  return () => window.clearTimeout(timeout)
+}
+
+function ZeroPreloader({
+  userID,
+  ctx,
+}: {
+  userID: string
+  ctx: ZeroContext
+}) {
+  const z = useZero()
+  const cleanupRef = React.useRef<null | (() => void)>(null)
+  const preloadedForRef = React.useRef<{ userID: string; zero: unknown } | null>(null)
+  const scheduledForRef = React.useRef<{ userID: string; zero: unknown } | null>(null)
+
+  React.useEffect(() => {
+    const isSignedIn = userID !== "anon"
+    const ctxReady =
+      ctx.userID === userID && (ctx.userType === "internal" || ctx.userType === "client")
+
+    if (!isSignedIn || !ctxReady) return
+    if (preloadedForRef.current?.userID === userID && preloadedForRef.current.zero === z) return
+    if (scheduledForRef.current?.userID === userID && scheduledForRef.current.zero === z) return
+
+    scheduledForRef.current = { userID, zero: z }
+
+    const cancel = scheduleIdle(() => {
+      if (scheduledForRef.current?.userID !== userID || scheduledForRef.current.zero !== z) return
+      scheduledForRef.current = null
+      cleanupRef.current?.()
+      cleanupRef.current = preloadMainPages(z, ctx)
+      preloadedForRef.current = { userID, zero: z }
+    })
+
+    return () => {
+      cancel()
+      if (scheduledForRef.current?.userID === userID && scheduledForRef.current.zero === z) {
+        scheduledForRef.current = null
+      }
+    }
+  }, [ctx, userID, z])
+
+  React.useEffect(() => {
+    if (userID !== "anon") return
+    cleanupRef.current?.()
+    cleanupRef.current = null
+    preloadedForRef.current = null
+    scheduledForRef.current = null
+  }, [userID])
+
+  return null
+}
 
 export function RiZeroProvider({
   children,
@@ -124,7 +189,10 @@ export function RiZeroProvider({
       storageKey="ri-theme"
       disableTransitionOnChange
     >
-      <ZeroProvider {...opts}>{children}</ZeroProvider>
+      <ZeroProvider {...opts}>
+        <ZeroPreloader userID={userID} ctx={ctx} />
+        {children}
+      </ZeroProvider>
     </ThemeProvider>
   )
 }
