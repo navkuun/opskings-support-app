@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { NumericFilterOp, NumericFilterState } from "@/lib/team-performance/filters"
+import { isString } from "@/lib/type-guards"
 
 type NumericFilterPatch = Partial<Pick<NumericFilterState, "op" | "a" | "b">>
 
@@ -53,7 +54,7 @@ function NumericFilterSegment({
   const showInputs = value.op === "between" || showNumber
 
   return (
-    <InputGroup className="h-full rounded-none border-0 bg-transparent shadow-none">
+    <InputGroup className="h-full w-full rounded-none border-0 bg-transparent shadow-none">
       <InputGroupAddon align="inline-start" className="pl-3 pr-0 gap-2">
         <InputGroupText className="text-muted-foreground/72">{label}</InputGroupText>
         <Select
@@ -128,6 +129,21 @@ function NumericFilterSegment({
   )
 }
 
+function renderSingleSelectValue({
+  value,
+  placeholder,
+}: {
+  value: unknown
+  placeholder: string
+}) {
+  if (!isString(value) || !value.trim() || value === "any") {
+    return <span className="text-muted-foreground/72">{placeholder}</span>
+  }
+
+  if (value === "none") return "No plan"
+  return value
+}
+
 export function ClientAnalysisFilterRow({
   query,
   plan,
@@ -180,44 +196,31 @@ export function ClientAnalysisFilterRow({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 divide-x divide-border md:grid-cols-4">
+        <div className="grid grid-cols-2 divide-x divide-y divide-border md:divide-y-0 md:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
           <div className="flex h-10 items-stretch">
-            <InputGroup className="h-full rounded-none border-0 bg-transparent shadow-none">
-              <InputGroupAddon align="inline-start" className="pl-3 pr-0 gap-2">
-                <InputGroupText className="text-muted-foreground/72">Plan</InputGroupText>
-                <Select value={plan} onValueChange={(next) => onPlanChange(next ?? "any")}>
-                  <SelectTrigger
-                    size="sm"
-                    className="h-6 w-[10rem] rounded-md border border-border/60 bg-background/60 px-2 text-[0.6875rem] text-muted-foreground shadow-none"
-                  >
-                    <SelectValue>{plan === "any" ? "All plans" : plan === "none" ? "No plan" : plan}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectGroup>
-                      <SelectItem value="any">All plans</SelectItem>
-                      <SelectItem value="none">No plan</SelectItem>
-                      {planOptions.map((opt) => (
-                        <SelectItem key={opt} value={opt}>
-                          {opt}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </InputGroupAddon>
-              <InputGroupInput
-                aria-label="Plan filter"
-                size="lg"
-                unstyled
-                value=""
-                placeholder="—"
-                readOnly
-                className="text-xs text-muted-foreground/50"
-              />
-            </InputGroup>
+            <Select value={plan} onValueChange={(next) => onPlanChange(next ?? "any")}>
+              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
+                <SelectValue>
+                  {(value: unknown) =>
+                    renderSingleSelectValue({ value, placeholder: "Plan type…" })
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectGroup>
+                  <SelectItem value="any">All plans</SelectItem>
+                  <SelectItem value="none">No plan</SelectItem>
+                  {planOptions.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="col-span-1 flex h-10 items-stretch md:col-span-3">
+          <div className="col-span-1 flex h-10 items-stretch">
             <NumericFilterSegment
               label="Total spent"
               value={totalSpent}
