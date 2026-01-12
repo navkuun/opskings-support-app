@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { MagnifyingGlassIcon } from "@phosphor-icons/react"
 
 import { DatePickerSegment } from "@/components/filters/date-picker-segment"
 import { Button } from "@/components/ui/button"
@@ -19,7 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { formatTeamMemberLabel } from "@/lib/dashboard/utils"
 import type { NumericFilterOp, NumericFilterState } from "@/lib/team-performance/filters"
+import { isString } from "@/lib/type-guards"
 import { cn } from "@/lib/utils"
 
 export type TeamsFilterState = {
@@ -120,9 +123,6 @@ function NumericFilterSegment({
           />
           {showBetween ? (
             <>
-              <InputGroupAddon align="inline-start" className="px-0">
-                <InputGroupText className="text-muted-foreground/50">and</InputGroupText>
-              </InputGroupAddon>
               <InputGroupInput
                 aria-label={`${label} filter max`}
                 size="lg"
@@ -171,7 +171,9 @@ export function TeamsFilterRow({
           <div className="col-span-2 flex h-10 items-stretch md:col-span-1">
             <InputGroup className="h-full rounded-none border-0 bg-transparent shadow-none">
               <InputGroupAddon align="inline-start" className="pl-3 pr-0">
-                <InputGroupText className="text-muted-foreground/72">Search:</InputGroupText>
+                <InputGroupText className="text-muted-foreground/72">
+                  <MagnifyingGlassIcon className="size-3.5" aria-hidden="true" />
+                </InputGroupText>
               </InputGroupAddon>
               <InputGroupInput
                 aria-label="Search team members"
@@ -280,19 +282,28 @@ export function TeamsFilterRow({
           </div>
 
           <div className="col-span-2 flex h-10 items-stretch md:col-span-1">
-            <select
-              aria-label="Filter status"
-              value={value.status}
-              onChange={(e) => onValueChange({ status: e.target.value })}
-              className="h-full w-full rounded-none border-0 bg-transparent px-3 text-xs text-foreground outline-none"
-            >
-              <option value="all">All status</option>
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
+            <Select value={value.status} onValueChange={(next) => onValueChange({ status: next ?? "all" })}>
+              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
+                <SelectValue>
+                  {(val: unknown) => {
+                    if (!isString(val) || !val.trim() || val === "all") {
+                      return <span className="text-muted-foreground/72">All status</span>
+                    }
+                    return formatTeamMemberLabel(val)
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectGroup>
+                  <SelectItem value="all">All status</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {formatTeamMemberLabel(status)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
