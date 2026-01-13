@@ -57,7 +57,8 @@ function parseEmailStatusResponse(value: unknown): EmailStatusResponse | null {
 export function LoginForm() {
   const router = useRouter()
   const { data: session } = authClient.useSession()
-  const showDemoUsers = process.env.NODE_ENV !== "production"
+  // const showDemoUsers = process.env.NODE_ENV !== "production"
+  const showDemoUsers = true;
 
   const [step, setStep] = React.useState<"email" | "password" | "setup-link">(
     "email",
