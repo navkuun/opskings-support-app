@@ -175,9 +175,7 @@ export function TicketsPageClient({
   )
 
   const [ticketTypes] = useQuery(queries.ticketTypes.list({ limit: 200 }))
-  const [teamMembers, teamMembersResult] = useQuery(
-    queries.teamMembers.internalList({ limit: 200 }),
-  )
+  const [teamMembers] = useQuery(queries.teamMembers.internalList({ limit: 200 }))
   const [clients] = useQuery(queries.clients.list({ limit: 200 }))
 
   const defaultDepartment = React.useMemo(() => {
@@ -186,21 +184,16 @@ export function TicketsPageClient({
     return match?.department?.trim() ? match.department : null
   }, [teamMemberId, teamMembers, userType])
 
-  const department = React.useMemo<string | null>(() => {
+  const department = React.useMemo<string>(() => {
     if (userType !== "internal") return "all"
 
     const dept = (deptParam ?? "").trim()
     if (dept === "all") return "all"
     if (dept) return dept
 
-    const shouldAutoDefaultDept = typeof teamMemberId === "number" && teamMemberId > 0
-    if (shouldAutoDefaultDept && teamMembersResult.type !== "complete") {
-      return null
-    }
-
     return defaultDepartment ?? "all"
-  }, [defaultDepartment, deptParam, teamMemberId, teamMembersResult.type, userType])
-  const departmentUi = department ?? "all"
+  }, [defaultDepartment, deptParam, userType])
+  const departmentUi = department
 
   const departmentOptions = React.useMemo(() => {
     const values = ticketTypes
@@ -296,20 +289,14 @@ export function TicketsPageClient({
   const queryArgs = React.useMemo(() => {
     const statuses = statusValues.filter((value) => value !== "any")
     const priorities = priorityValues.filter((value) => value !== "any")
-    const isPendingDepartment = userType === "internal" && department == null
-    const deptValue =
-      userType === "internal" && department && department !== "all"
-        ? department
-        : isPendingDepartment
-          ? "__pending_department__"
-          : undefined
+    const deptValue = userType === "internal" && department !== "all" ? department : undefined
     const clientFilter = canFilterClients && clientIds.length ? clientIds : undefined
     const assignedToOpValue =
       assignedToIds.length || includeUnassigned ? assignedToOp : undefined
 
     return {
-      limit: isPendingDepartment ? 1 : isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
-      cursor: isPendingDepartment ? undefined : cursor ?? undefined,
+      limit: isSearchMode ? SEARCH_LIMIT : PAGE_SIZE + 1,
+      cursor: isSearchMode ? undefined : cursor ?? undefined,
       from: createdFrom,
       to: createdTo,
       department: deptValue,
@@ -351,11 +338,6 @@ export function TicketsPageClient({
   const pageTickets = React.useMemo(() => tickets.slice(0, PAGE_SIZE), [tickets])
 
   React.useEffect(() => {
-    if (department == null) {
-      setTotalTickets(null)
-      return
-    }
-
     if (isSearchMode) {
       setTotalTickets(null)
       return
@@ -668,7 +650,7 @@ export function TicketsPageClient({
     setPageIndex((prev) => (prev <= 0 ? 0 : prev - 1))
   }, [isSearchMode])
 
-  const ticketsLoading = department == null || ticketsResult.type !== "complete"
+  const ticketsLoading = ticketsResult.type === "unknown"
 
   return (
     <div className="w-full pb-8">
@@ -702,6 +684,18 @@ export function TicketsPageClient({
       />
 
       <div className="px-6 pt-6">
+        {ticketsResult.type === "error" ? (
+          <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+            <p className="font-medium">Couldn’t load tickets</p>
+            <p className="mt-1 text-muted-foreground">{ticketsResult.error.message}</p>
+            <div className="mt-3">
+              <Button size="sm" variant="outline" onClick={() => ticketsResult.retry()}>
+                Retry
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {canCreateTickets ? (
           <div className="mb-3 flex items-center justify-end">
             <Button
