@@ -396,8 +396,20 @@ Note: the perf harness uses `E2E_TEST_MODE=true` locally to enable test-only end
 - Most filter changes are evaluated locally against the Zero replica, which reduces server load and keeps the UI responsive at higher row counts.
 - For analytics queries at higher scale (hundreds of thousands to millions), move heavy aggregations to rollups/materialized views and/or incremental aggregation tables.
 
-## Useful commands
+## Thought Process
 
+My thought process comes down to a few essential things:
+- Focus heavily on initial database design
+- UI/UX is a first-class priority, no AI slop-esque design
+- Ensure LLMs have all necessary context, I scraped the necessary docs and placed them in the /context folder rather than use MCPs like context7 as I'm able to read docs directly and not have it abstracted from me + makes it easier for granular references of docs in Codex
+- Deployed to single VPS to minimise latency, although wouldn't do this in production as scaling/managment would be more strenuous
+- Always create a /design-system page when using registry style components like ShadCN or Base-UI so that if you want to update a component, likely many of it's variants/sizes, the design system page will allow you to see all variants instantly to allow for faster iteration
+- Keybinds are a must to maximise productivity
+- Minimise nesting! I hate when I have to click through 3 seperate layers to get to the feature I want
+- Use the best LLM possible regardless of cost, productivity gains make up for it. I mostly used GPT 5.2 extra high mode in Codex
+ 
+
+## Useful commands
 - Lint: `pnpm lint`
 - Build: `pnpm build`
 - Start (prod): `pnpm start`
