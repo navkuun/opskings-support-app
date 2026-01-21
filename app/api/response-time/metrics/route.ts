@@ -262,6 +262,7 @@ export async function GET(req: Request) {
   const toParam = url.searchParams.get("to")
   const binsParam = url.searchParams.get("bins")
   const onlyParam = url.searchParams.get("only")
+  const includeOverdue = url.searchParams.get("includeOverdue") === "true"
   const histogramMode: HistogramBinMode =
     binsParam === "fine" || binsParam === "coarse" ? binsParam : "default"
 
@@ -351,136 +352,109 @@ export async function GET(req: Request) {
     priority,
   })
 
-  if (onlyParam === "histogram") {
-    const histogramSql =
-      histogramMode === "fine"
+  const resolvedCte = sql`
+    with resolved as materialized (
+      select
+        coalesce(t.priority, 'unknown') as priority_key,
+        (extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600 as hours,
+        tt.avg_resolution_hours::float8 as expected_hours
+      from tickets t
+      join ticket_types tt on tt.id = t.ticket_type_id
+      where ${ticketWhere}
+        and t.resolved_at is not null
+    )
+  `
+
+  const histogramBinCase =
+    histogramMode === "fine"
+      ? sql`
+          case
+            when hours < 0.5 then '0-0.5'
+            when hours < 1 then '0.5-1'
+            when hours < 2 then '1-2'
+            when hours < 4 then '2-4'
+            when hours < 8 then '4-8'
+            when hours < 16 then '8-16'
+            when hours < 24 then '16-24'
+            else '24+'
+          end
+        `
+      : histogramMode === "coarse"
         ? sql`
-            with resolved as (
-              select
-                coalesce(t.priority, 'unknown') as priority,
-                (extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600 as hours
-              from tickets t
-              where ${ticketWhere}
-                and t.resolved_at is not null
-            )
-            select
-              bin,
-              bin_order as "binOrder",
-              count(*)::int as total,
-              (count(*) filter (where priority = 'urgent'))::int as urgent,
-              (count(*) filter (where priority = 'high'))::int as high,
-              (count(*) filter (where priority = 'medium'))::int as medium,
-              (count(*) filter (where priority = 'low'))::int as low,
-              (count(*) filter (where priority = 'unknown'))::int as unknown
-            from (
-              select
-                priority,
-                case
-                  when hours < 0.5 then '0-0.5'
-                  when hours < 1 then '0.5-1'
-                  when hours < 2 then '1-2'
-                  when hours < 4 then '2-4'
-                  when hours < 8 then '4-8'
-                  when hours < 16 then '8-16'
-                  when hours < 24 then '16-24'
-                  else '24+'
-                end as bin,
-                case
-                  when hours < 0.5 then 0
-                  when hours < 1 then 1
-                  when hours < 2 then 2
-                  when hours < 4 then 3
-                  when hours < 8 then 4
-                  when hours < 16 then 5
-                  when hours < 24 then 6
-                  else 7
-                end as bin_order
-              from resolved
-            ) b
-            group by 1, 2
-            order by 2 asc
+            case
+              when hours < 2 then '0-2'
+              when hours < 8 then '2-8'
+              when hours < 16 then '8-16'
+              else '16+'
+            end
           `
-        : histogramMode === "coarse"
-          ? sql`
-              with resolved as (
-                select
-                  coalesce(t.priority, 'unknown') as priority,
-                  (extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600 as hours
-                from tickets t
-                where ${ticketWhere}
-                  and t.resolved_at is not null
-              )
-              select
-                bin,
-                bin_order as "binOrder",
-                count(*)::int as total,
-                (count(*) filter (where priority = 'urgent'))::int as urgent,
-                (count(*) filter (where priority = 'high'))::int as high,
-                (count(*) filter (where priority = 'medium'))::int as medium,
-                (count(*) filter (where priority = 'low'))::int as low,
-                (count(*) filter (where priority = 'unknown'))::int as unknown
-              from (
-                select
-                  priority,
-                  case
-                    when hours < 2 then '0-2'
-                    when hours < 8 then '2-8'
-                    when hours < 16 then '8-16'
-                    else '16+'
-                  end as bin,
-                  case
-                    when hours < 2 then 0
-                    when hours < 8 then 1
-                    when hours < 16 then 2
-                    else 3
-                  end as bin_order
-                from resolved
-              ) b
-              group by 1, 2
-              order by 2 asc
-            `
-          : sql`
-              with resolved as (
-                select
-                  coalesce(t.priority, 'unknown') as priority,
-                  (extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600 as hours
-                from tickets t
-                where ${ticketWhere}
-                  and t.resolved_at is not null
-              )
-              select
-                bin,
-                bin_order as "binOrder",
-                count(*)::int as total,
-                (count(*) filter (where priority = 'urgent'))::int as urgent,
-                (count(*) filter (where priority = 'high'))::int as high,
-                (count(*) filter (where priority = 'medium'))::int as medium,
-                (count(*) filter (where priority = 'low'))::int as low,
-                (count(*) filter (where priority = 'unknown'))::int as unknown
-              from (
-                select
-                  priority,
-                  case
-                    when hours < 1 then '0-1'
-                    when hours < 2 then '1-2'
-                    when hours < 4 then '2-4'
-                    when hours < 8 then '4-8'
-                    when hours < 16 then '8-16'
-                    else '16+'
-                  end as bin,
-                  case
-                    when hours < 1 then 0
-                    when hours < 2 then 1
-                    when hours < 4 then 2
-                    when hours < 8 then 3
-                    when hours < 16 then 4
-                    else 5
-                  end as bin_order
-                from resolved
-              ) b
-              group by 1, 2
-              order by 2 asc
-            `
+        : sql`
+            case
+              when hours < 1 then '0-1'
+              when hours < 2 then '1-2'
+              when hours < 4 then '2-4'
+              when hours < 8 then '4-8'
+              when hours < 16 then '8-16'
+              else '16+'
+            end
+          `
+
+  const histogramOrderCase =
+    histogramMode === "fine"
+      ? sql`
+          case
+            when hours < 0.5 then 0
+            when hours < 1 then 1
+            when hours < 2 then 2
+            when hours < 4 then 3
+            when hours < 8 then 4
+            when hours < 16 then 5
+            when hours < 24 then 6
+            else 7
+          end
+        `
+      : histogramMode === "coarse"
+        ? sql`
+            case
+              when hours < 2 then 0
+              when hours < 8 then 1
+              when hours < 16 then 2
+              else 3
+            end
+          `
+        : sql`
+            case
+              when hours < 1 then 0
+              when hours < 2 then 1
+              when hours < 4 then 2
+              when hours < 8 then 3
+              when hours < 16 then 4
+              else 5
+            end
+          `
+
+  if (onlyParam === "histogram") {
+    const histogramSql = sql`
+      ${resolvedCte}
+      select
+        bin,
+        bin_order as "binOrder",
+        count(*)::int as total,
+        (count(*) filter (where priority_key = 'urgent'))::int as urgent,
+        (count(*) filter (where priority_key = 'high'))::int as high,
+        (count(*) filter (where priority_key = 'medium'))::int as medium,
+        (count(*) filter (where priority_key = 'low'))::int as low,
+        (count(*) filter (where priority_key = 'unknown'))::int as unknown
+      from (
+        select
+          priority_key,
+          ${histogramBinCase} as bin,
+          ${histogramOrderCase} as bin_order
+        from resolved
+      ) b
+      group by 1, 2
+      order by 2 asc
+    `
 
     const histogramRows = await db.execute<HistogramRow>(histogramSql)
 
@@ -512,7 +486,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ histogram: normalizedHistogram })
   }
 
-  const statsRows = await db.execute<{
+  const metricsRows = await db.execute<{
     resolvedTotal: number
     expectedTotal: number
     overdueTotal: number
@@ -522,217 +496,135 @@ export async function GET(req: Request) {
     medianHours: number | null
     avgExpectedHours: number | null
     avgDeltaHours: number | null
+    byPriority: Array<{
+      priority: string
+      resolvedTotal: number
+      expectedTotal: number
+      overdueTotal: number
+      minHours: number | null
+      maxHours: number | null
+      avgHours: number | null
+      medianHours: number | null
+      avgExpectedHours: number | null
+      avgDeltaHours: number | null
+    }>
+    histogram: HistogramRow[]
   }>(
     sql`
-      select
-        count(*)::int as "resolvedTotal",
-        (count(*) filter (where tt.avg_resolution_hours is not null))::int as "expectedTotal",
-        (count(*) filter (
-          where tt.avg_resolution_hours is not null
-            and ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) > tt.avg_resolution_hours
-        ))::int as "overdueTotal",
-        min((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "minHours",
-        max((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "maxHours",
-        avg((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "avgHours",
-        percentile_cont(0.5) within group (
-          order by ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600)
-        ) as "medianHours",
-        (avg(tt.avg_resolution_hours) filter (where tt.avg_resolution_hours is not null))::float8 as "avgExpectedHours",
-        (
-          avg(
-            (((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) - tt.avg_resolution_hours)::float8
-          ) filter (where tt.avg_resolution_hours is not null)
-        )::float8 as "avgDeltaHours"
-      from tickets t
-      join ticket_types tt on tt.id = t.ticket_type_id
-      where ${ticketWhere}
-        and t.resolved_at is not null
-    `,
-  )
-
-  const byPriorityRows = await db.execute<{
-    priority: string
-    resolvedTotal: number
-    expectedTotal: number
-    overdueTotal: number
-    minHours: number | null
-    maxHours: number | null
-    avgHours: number | null
-    medianHours: number | null
-    avgExpectedHours: number | null
-    avgDeltaHours: number | null
-  }>(
-    sql`
-      select
-        coalesce(t.priority, 'unknown') as priority,
-        count(*)::int as "resolvedTotal",
-        (count(*) filter (where tt.avg_resolution_hours is not null))::int as "expectedTotal",
-        (count(*) filter (
-          where tt.avg_resolution_hours is not null
-            and ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) > tt.avg_resolution_hours
-        ))::int as "overdueTotal",
-        min((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "minHours",
-        max((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "maxHours",
-        avg((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "avgHours",
-        percentile_cont(0.5) within group (
-          order by ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600)
-        ) as "medianHours",
-        (avg(tt.avg_resolution_hours) filter (where tt.avg_resolution_hours is not null))::float8 as "avgExpectedHours",
-        (
-          avg(
-            (((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) - tt.avg_resolution_hours)::float8
-          ) filter (where tt.avg_resolution_hours is not null)
-        )::float8 as "avgDeltaHours"
-      from tickets t
-      join ticket_types tt on tt.id = t.ticket_type_id
-      where ${ticketWhere}
-        and t.resolved_at is not null
-      group by 1
-      order by 1 asc
-    `,
-  )
-
-  const histogramSql =
-    histogramMode === "fine"
-      ? sql`
-          with resolved as (
-            select
-              coalesce(t.priority, 'unknown') as priority,
-              (extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600 as hours
-            from tickets t
-            where ${ticketWhere}
-              and t.resolved_at is not null
-          )
+      ${resolvedCte}
+      , stats as (
+        select
+          count(*)::int as resolved_total,
+          (count(*) filter (where expected_hours is not null))::int as expected_total,
+          (count(*) filter (where expected_hours is not null and hours > expected_hours))::int as overdue_total,
+          min(hours) as min_hours,
+          max(hours) as max_hours,
+          avg(hours)::float8 as avg_hours,
+          percentile_cont(0.5) within group (order by hours) as median_hours,
+          (avg(expected_hours) filter (where expected_hours is not null))::float8 as avg_expected_hours,
+          (avg((hours - expected_hours)) filter (where expected_hours is not null))::float8 as avg_delta_hours
+        from resolved
+      ),
+      by_priority as (
+        select
+          priority_key as priority,
+          count(*)::int as resolved_total,
+          (count(*) filter (where expected_hours is not null))::int as expected_total,
+          (count(*) filter (where expected_hours is not null and hours > expected_hours))::int as overdue_total,
+          min(hours) as min_hours,
+          max(hours) as max_hours,
+          avg(hours)::float8 as avg_hours,
+          percentile_cont(0.5) within group (order by hours) as median_hours,
+          (avg(expected_hours) filter (where expected_hours is not null))::float8 as avg_expected_hours,
+          (avg((hours - expected_hours)) filter (where expected_hours is not null))::float8 as avg_delta_hours
+        from resolved
+        group by 1
+      ),
+      histogram as (
+        select
+          bin,
+          bin_order,
+          count(*)::int as total,
+          (count(*) filter (where priority_key = 'urgent'))::int as urgent,
+          (count(*) filter (where priority_key = 'high'))::int as high,
+          (count(*) filter (where priority_key = 'medium'))::int as medium,
+          (count(*) filter (where priority_key = 'low'))::int as low,
+          (count(*) filter (where priority_key = 'unknown'))::int as unknown
+        from (
           select
-            bin,
-            bin_order as "binOrder",
-            count(*)::int as total,
-            (count(*) filter (where priority = 'urgent'))::int as urgent,
-            (count(*) filter (where priority = 'high'))::int as high,
-            (count(*) filter (where priority = 'medium'))::int as medium,
-            (count(*) filter (where priority = 'low'))::int as low,
-            (count(*) filter (where priority = 'unknown'))::int as unknown
-          from (
-            select
-              priority,
-              case
-                when hours < 0.5 then '0-0.5'
-                when hours < 1 then '0.5-1'
-                when hours < 2 then '1-2'
-                when hours < 4 then '2-4'
-                when hours < 8 then '4-8'
-                when hours < 16 then '8-16'
-                when hours < 24 then '16-24'
-                else '24+'
-              end as bin,
-              case
-                when hours < 0.5 then 0
-                when hours < 1 then 1
-                when hours < 2 then 2
-                when hours < 4 then 3
-                when hours < 8 then 4
-                when hours < 16 then 5
-                when hours < 24 then 6
-                else 7
-              end as bin_order
-            from resolved
-          ) b
-          group by 1, 2
-          order by 2 asc
-        `
-      : histogramMode === "coarse"
-        ? sql`
-            with resolved as (
-              select
-                coalesce(t.priority, 'unknown') as priority,
-                (extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600 as hours
-              from tickets t
-              where ${ticketWhere}
-                and t.resolved_at is not null
+            priority_key,
+            ${histogramBinCase} as bin,
+            ${histogramOrderCase} as bin_order
+          from resolved
+        ) b
+        group by 1, 2
+      )
+      select
+        stats.resolved_total as "resolvedTotal",
+        stats.expected_total as "expectedTotal",
+        stats.overdue_total as "overdueTotal",
+        stats.min_hours as "minHours",
+        stats.max_hours as "maxHours",
+        stats.avg_hours as "avgHours",
+        stats.median_hours as "medianHours",
+        stats.avg_expected_hours as "avgExpectedHours",
+        stats.avg_delta_hours as "avgDeltaHours",
+        coalesce(
+          (
+            select jsonb_agg(
+              jsonb_build_object(
+                'priority', priority,
+                'resolvedTotal', resolved_total,
+                'expectedTotal', expected_total,
+                'overdueTotal', overdue_total,
+                'minHours', min_hours,
+                'maxHours', max_hours,
+                'avgHours', avg_hours,
+                'medianHours', median_hours,
+                'avgExpectedHours', avg_expected_hours,
+                'avgDeltaHours', avg_delta_hours
+              )
+              order by priority asc
             )
-            select
-              bin,
-              bin_order as "binOrder",
-              count(*)::int as total,
-              (count(*) filter (where priority = 'urgent'))::int as urgent,
-              (count(*) filter (where priority = 'high'))::int as high,
-              (count(*) filter (where priority = 'medium'))::int as medium,
-              (count(*) filter (where priority = 'low'))::int as low,
-              (count(*) filter (where priority = 'unknown'))::int as unknown
-            from (
-              select
-                priority,
-                case
-                  when hours < 2 then '0-2'
-                  when hours < 8 then '2-8'
-                  when hours < 16 then '8-16'
-                  else '16+'
-                end as bin,
-                case
-                  when hours < 2 then 0
-                  when hours < 8 then 1
-                  when hours < 16 then 2
-                  else 3
-                end as bin_order
-              from resolved
-            ) b
-            group by 1, 2
-            order by 2 asc
-          `
-        : sql`
-            with resolved as (
-              select
-                coalesce(t.priority, 'unknown') as priority,
-                (extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600 as hours
-              from tickets t
-              where ${ticketWhere}
-                and t.resolved_at is not null
+            from by_priority
+          ),
+          '[]'::jsonb
+        ) as "byPriority",
+        coalesce(
+          (
+            select jsonb_agg(
+              jsonb_build_object(
+                'bin', bin,
+                'binOrder', bin_order,
+                'total', total,
+                'urgent', urgent,
+                'high', high,
+                'medium', medium,
+                'low', low,
+                'unknown', unknown
+              )
+              order by bin_order asc
             )
-            select
-              bin,
-              bin_order as "binOrder",
-              count(*)::int as total,
-              (count(*) filter (where priority = 'urgent'))::int as urgent,
-              (count(*) filter (where priority = 'high'))::int as high,
-              (count(*) filter (where priority = 'medium'))::int as medium,
-              (count(*) filter (where priority = 'low'))::int as low,
-              (count(*) filter (where priority = 'unknown'))::int as unknown
-            from (
-              select
-                priority,
-                case
-                  when hours < 1 then '0-1'
-                  when hours < 2 then '1-2'
-                  when hours < 4 then '2-4'
-                  when hours < 8 then '4-8'
-                  when hours < 16 then '8-16'
-                  else '16+'
-                end as bin,
-                case
-                  when hours < 1 then 0
-                  when hours < 2 then 1
-                  when hours < 4 then 2
-                  when hours < 8 then 3
-                  when hours < 16 then 4
-                  else 5
-                end as bin_order
-              from resolved
-            ) b
-            group by 1, 2
-            order by 2 asc
-          `
+            from histogram
+          ),
+          '[]'::jsonb
+        ) as histogram
+      from stats
+    `,
+  )
 
-  const histogramRows = await db.execute<HistogramRow>(histogramSql)
+  const row = metricsRows.rows[0]
+  const histogramRows = row?.histogram ?? []
 
   const histogramByBin = new Map<string, Omit<HistogramRow, "bin" | "binOrder">>()
-  for (const row of histogramRows.rows) {
-    histogramByBin.set(row.bin, {
-      total: row.total,
-      urgent: row.urgent,
-      high: row.high,
-      medium: row.medium,
-      low: row.low,
-      unknown: row.unknown,
+  for (const histogramRow of histogramRows) {
+    histogramByBin.set(histogramRow.bin, {
+      total: histogramRow.total,
+      urgent: histogramRow.urgent,
+      high: histogramRow.high,
+      medium: histogramRow.medium,
+      low: histogramRow.low,
+      unknown: histogramRow.unknown,
     })
   }
 
@@ -749,50 +641,82 @@ export async function GET(req: Request) {
     }
   })
 
-  const overdueRows = await db.execute<{
+  let overdueTickets: Array<{
     id: number
     title: string
     clientName: string | null
     ticketType: string
     status: string | null
     priority: string | null
-    createdAt: Date | null
-    resolvedAt: Date | null
+    createdAt: string | null
+    resolvedAt: string | null
     expectedHours: number
     actualHours: number
     deltaHours: number
-  }>(
-    sql`
-      select
-        t.id::int as id,
-        t.title as title,
-        c.client_name as "clientName",
-        tt.type_name as "ticketType",
-        t.status as status,
-        t.priority as priority,
-        t.created_at as "createdAt",
-        t.resolved_at as "resolvedAt",
-        tt.avg_resolution_hours::int as "expectedHours",
-        ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "actualHours",
-        (((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) - tt.avg_resolution_hours)::float8 as "deltaHours"
-      from tickets t
-      join ticket_types tt on tt.id = t.ticket_type_id
-      join clients c on c.id = t.client_id
-      where ${ticketWhere}
-        and t.resolved_at is not null
-        and tt.avg_resolution_hours is not null
-        and ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) > tt.avg_resolution_hours
-      order by "deltaHours" desc
-      limit 200
-    `,
-  )
+  }> = []
+
+  if (includeOverdue) {
+    const overdueRows = await db.execute<{
+      id: number
+      title: string
+      clientName: string | null
+      ticketType: string
+      status: string | null
+      priority: string | null
+      createdAt: Date | null
+      resolvedAt: Date | null
+      expectedHours: number
+      actualHours: number
+      deltaHours: number
+    }>(
+      sql`
+        select
+          t.id::int as id,
+          t.title as title,
+          c.client_name as "clientName",
+          tt.type_name as "ticketType",
+          t.status as status,
+          t.priority as priority,
+          t.created_at as "createdAt",
+          t.resolved_at as "resolvedAt",
+          tt.avg_resolution_hours::int as "expectedHours",
+          ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "actualHours",
+          (((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) - tt.avg_resolution_hours)::float8 as "deltaHours"
+        from tickets t
+        join ticket_types tt on tt.id = t.ticket_type_id
+        join clients c on c.id = t.client_id
+        where ${ticketWhere}
+          and t.resolved_at is not null
+          and tt.avg_resolution_hours is not null
+          and ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) > tt.avg_resolution_hours
+        order by "deltaHours" desc
+        limit 200
+      `,
+    )
+
+    overdueTickets = overdueRows.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      clientName: row.clientName,
+      ticketType: row.ticketType,
+      status: row.status,
+      priority: row.priority,
+      createdAt: toIsoString(row.createdAt),
+      resolvedAt: toIsoString(row.resolvedAt),
+      expectedHours: row.expectedHours,
+      actualHours: row.actualHours,
+      deltaHours: row.deltaHours,
+    }))
+  }
 
   const priorityOrder = new Map<string, number>(
     priorityKeys.map((key, idx) => [key, idx]),
   )
 
+  const byPriorityRows = row?.byPriority ?? []
+
   const sortedByPriority = byPriorityRows
-    .rows.slice()
+    .slice()
     .sort((a, b) => {
       const aKey = a.priority.toLowerCase()
       const bKey = b.priority.toLowerCase()
@@ -802,7 +726,7 @@ export async function GET(req: Request) {
       return aKey.localeCompare(bKey)
     })
 
-  const overall = statsRows.rows[0] ?? null
+  const overall = row ?? null
 
   return NextResponse.json({
     resolvedTotal: overall?.resolvedTotal ?? 0,
@@ -816,18 +740,6 @@ export async function GET(req: Request) {
     avgDeltaHours: overall?.avgDeltaHours ?? null,
     byPriority: sortedByPriority,
     histogram: normalizedHistogram,
-    overdueTickets: overdueRows.rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      clientName: row.clientName,
-      ticketType: row.ticketType,
-      status: row.status,
-      priority: row.priority,
-      createdAt: toIsoString(row.createdAt),
-      resolvedAt: toIsoString(row.resolvedAt),
-      expectedHours: row.expectedHours,
-      actualHours: row.actualHours,
-      deltaHours: row.deltaHours,
-    })),
+    overdueTickets,
   })
 }

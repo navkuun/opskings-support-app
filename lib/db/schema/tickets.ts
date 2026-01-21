@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm"
 import {
   index,
   integer,
@@ -41,9 +42,20 @@ export const tickets = pgTable(
       t.createdAt,
     ),
     ticketTypeIdIdx: index("idx_tickets_ticket_type_id").on(t.ticketTypeId),
+    ticketTypeCreatedAtIdx: index("idx_tickets_ticket_type_id_created_at").on(
+      t.ticketTypeId,
+      t.createdAt,
+    ),
     statusIdx: index("idx_tickets_status").on(t.status),
     priorityIdx: index("idx_tickets_priority").on(t.priority),
+    priorityCreatedAtIdx: index("idx_tickets_priority_created_at").on(
+      t.priority,
+      t.createdAt,
+    ),
     createdAtIdx: index("idx_tickets_created_at").on(t.createdAt),
     resolvedAtIdx: index("idx_tickets_resolved_at").on(t.resolvedAt),
+    resolvedCreatedAtIdx: index("idx_tickets_resolved_created_at")
+      .on(t.createdAt)
+      .where(sql`${t.resolvedAt} is not null`),
   }),
 )

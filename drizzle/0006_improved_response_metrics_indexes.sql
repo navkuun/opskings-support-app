@@ -1,0 +1,1 @@
+CREATE INDEX "idx_tickets_resolved_created_at" ON "tickets" USING btree ("created_at") WHERE "tickets"."resolved_at" is not null;

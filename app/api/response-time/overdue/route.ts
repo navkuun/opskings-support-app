@@ -310,20 +310,8 @@ export async function GET(req: Request) {
     priority,
   })
 
-  const totalRows = await db.execute<{ total: number }>(
-    sql`
-      select count(*)::int as total
-      from tickets t
-      join ticket_types tt on tt.id = t.ticket_type_id
-      where ${ticketWhere}
-        and t.resolved_at is not null
-        and tt.avg_resolution_hours is not null
-        and ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) > tt.avg_resolution_hours
-    `,
-  )
-
   const rows = await db.execute<{
-    id: number
+    id: number | null
     title: string
     clientName: string | null
     ticketType: string
@@ -334,35 +322,58 @@ export async function GET(req: Request) {
     expectedHours: number
     actualHours: number
     deltaHours: number
+    total: number
   }>(
     sql`
+      with overdue as materialized (
+        select
+          t.id::int as id,
+          t.title as title,
+          c.client_name as "clientName",
+          tt.type_name as "ticketType",
+          t.status as status,
+          t.priority as priority,
+          t.created_at as "createdAt",
+          t.resolved_at as "resolvedAt",
+          tt.avg_resolution_hours::int as "expectedHours",
+          ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "actualHours",
+          (((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) - tt.avg_resolution_hours)::float8 as "deltaHours"
+        from tickets t
+        join ticket_types tt on tt.id = t.ticket_type_id
+        join clients c on c.id = t.client_id
+        where ${ticketWhere}
+          and t.resolved_at is not null
+          and tt.avg_resolution_hours is not null
+          and ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) > tt.avg_resolution_hours
+      ),
+      total as (
+        select count(*)::int as total
+        from overdue
+      ),
+      paged as (
+        select *
+        from overdue
+        order by "deltaHours" desc, id desc
+        limit ${limit} offset ${offset}
+      )
       select
-        t.id::int as id,
-        t.title as title,
-        c.client_name as "clientName",
-        tt.type_name as "ticketType",
-        t.status as status,
-        t.priority as priority,
-        t.created_at as "createdAt",
-        t.resolved_at as "resolvedAt",
-        tt.avg_resolution_hours::int as "expectedHours",
-        ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) as "actualHours",
-        (((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) - tt.avg_resolution_hours)::float8 as "deltaHours"
-      from tickets t
-      join ticket_types tt on tt.id = t.ticket_type_id
-      join clients c on c.id = t.client_id
-      where ${ticketWhere}
-        and t.resolved_at is not null
-        and tt.avg_resolution_hours is not null
-        and ((extract(epoch from (t.resolved_at - t.created_at))::float8) / 3600) > tt.avg_resolution_hours
-      order by "deltaHours" desc, t.id desc
-      limit ${limit} offset ${offset}
+        paged.*,
+        total.total
+      from total
+      left join paged on true
     `,
   )
 
+  const total = rows.rows[0]?.total ?? 0
+  type OverdueRow = (typeof rows.rows)[number]
+  const pagedRows = rows.rows.filter(
+    (row): row is OverdueRow & { id: number } =>
+      typeof row.id === "number" && Number.isInteger(row.id),
+  )
+
   return NextResponse.json({
-    total: totalRows.rows[0]?.total ?? 0,
-    rows: rows.rows.map((row) => ({
+    total,
+    rows: pagedRows.map((row) => ({
       id: row.id,
       title: row.title,
       clientName: row.clientName,
@@ -377,4 +388,3 @@ export async function GET(req: Request) {
     })),
   })
 }
-

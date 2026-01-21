@@ -36,6 +36,20 @@
       "when": 1768052427173,
       "tag": "0004_dashboard_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769001083257,
+      "tag": "0005_improve_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769001807151,
+      "tag": "0006_improved_response_metrics_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -253,168 +253,164 @@ export async function GET(req: Request) {
     priority,
   })
 
-  const totalRows = await db.execute<{ total: number }>(
-    sql`
-      select count(*)::int as total
-      from tickets
-      where ${ticketWhere}
-    `,
-  )
-
-  const openRows = await db.execute<{ open: number }>(
-    sql`
-      select count(*)::int as open
-      from tickets
-      where ${ticketWhere}
-        and coalesce(status, 'open') <> 'resolved'
-    `,
-  )
-
-  const resolutionRows = await db.execute<{ avgResolutionHours: number | null }>(
-    sql`
-      select
-        avg((extract(epoch from (resolved_at - created_at))::float8) / 3600) as "avgResolutionHours"
-      from tickets
-      where ${ticketWhere}
-        and resolved_at is not null
-    `,
-  )
-
-  const avgResolutionByMonthRows = await db.execute<{
-    month: string
+  const metricsRows = await db.execute<{
+    total: number
+    open: number
     avgResolutionHours: number | null
+    avgRating: number | null
+    createdByMonth: Record<string, number>
+    resolvedByMonth: Record<string, number>
+    openByMonth: Record<string, number>
+    avgResolutionHoursByMonth: Record<string, number | null>
+    ticketsByType: Array<{ ticketTypeId: number; count: number }>
+    ticketsByPriority: Array<{ priority: string; count: number }>
+    ticketsByPriorityStatus: Array<{ priority: string; status: "open" | "resolved"; count: number }>
   }>(
     sql`
+      with filtered as materialized (
+        select
+          t.id,
+          t.created_at,
+          t.resolved_at,
+          t.status,
+          t.priority,
+          t.ticket_type_id
+        from tickets t
+        where ${ticketWhere}
+      ),
+      created_by_month as (
+        select
+          to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
+          count(*)::int as count
+        from filtered
+        group by 1
+      ),
+      resolved_by_month as (
+        select
+          to_char(date_trunc('month', resolved_at), 'YYYY-MM') as month,
+          count(*)::int as count
+        from filtered
+        where resolved_at is not null
+        group by 1
+      ),
+      open_by_month as (
+        select
+          to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
+          count(*)::int as count
+        from filtered
+        where coalesce(status, 'open') <> 'resolved'
+        group by 1
+      ),
+      avg_resolution_by_month as (
+        select
+          to_char(date_trunc('month', resolved_at), 'YYYY-MM') as month,
+          avg((extract(epoch from (resolved_at - created_at))::float8) / 3600)::float8 as avg_resolution_hours
+        from filtered
+        where resolved_at is not null
+        group by 1
+      ),
+      tickets_by_type as (
+        select
+          ticket_type_id as ticket_type_id,
+          count(*)::int as count
+        from filtered
+        group by 1
+      ),
+      tickets_by_priority as (
+        select
+          coalesce(priority, 'unknown') as priority,
+          count(*)::int as count
+        from filtered
+        group by 1
+      ),
+      tickets_by_priority_status as (
+        select
+          coalesce(priority, 'unknown') as priority,
+          case
+            when coalesce(status, 'open') <> 'resolved' then 'open'
+            else 'resolved'
+          end as status,
+          count(*)::int as count
+        from filtered
+        group by 1, 2
+      ),
+      ratings as (
+        select avg(tf.rating)::float8 as avg_rating
+        from ticket_feedback tf
+        join filtered f on f.id = tf.ticket_id
+        where tf.rating is not null
+      )
       select
-        to_char(date_trunc('month', resolved_at), 'YYYY-MM') as month,
-        avg((extract(epoch from (resolved_at - created_at))::float8) / 3600) as "avgResolutionHours"
-      from tickets
-      where ${ticketWhere}
-        and resolved_at is not null
-      group by 1
-      order by 1 asc
+        (select count(*)::int from filtered) as total,
+        (select count(*)::int from filtered where coalesce(status, 'open') <> 'resolved') as open,
+        (
+          select avg((extract(epoch from (resolved_at - created_at))::float8) / 3600)::float8
+          from filtered
+          where resolved_at is not null
+        ) as "avgResolutionHours",
+        (select avg_rating from ratings) as "avgRating",
+        coalesce(
+          (select jsonb_object_agg(month, count) from created_by_month),
+          '{}'::jsonb
+        ) as "createdByMonth",
+        coalesce(
+          (select jsonb_object_agg(month, count) from resolved_by_month),
+          '{}'::jsonb
+        ) as "resolvedByMonth",
+        coalesce(
+          (select jsonb_object_agg(month, count) from open_by_month),
+          '{}'::jsonb
+        ) as "openByMonth",
+        coalesce(
+          (select jsonb_object_agg(month, avg_resolution_hours) from avg_resolution_by_month),
+          '{}'::jsonb
+        ) as "avgResolutionHoursByMonth",
+        coalesce(
+          (
+            select jsonb_agg(
+              jsonb_build_object('ticketTypeId', ticket_type_id, 'count', count)
+              order by count desc
+            )
+            from tickets_by_type
+          ),
+          '[]'::jsonb
+        ) as "ticketsByType",
+        coalesce(
+          (
+            select jsonb_agg(
+              jsonb_build_object('priority', priority, 'count', count)
+              order by count desc
+            )
+            from tickets_by_priority
+          ),
+          '[]'::jsonb
+        ) as "ticketsByPriority",
+        coalesce(
+          (
+            select jsonb_agg(
+              jsonb_build_object('priority', priority, 'status', status, 'count', count)
+              order by priority asc, status asc
+            )
+            from tickets_by_priority_status
+          ),
+          '[]'::jsonb
+        ) as "ticketsByPriorityStatus"
     `,
   )
 
-  const ratingRows = await db.execute<{ avgRating: number | null }>(
-    sql`
-      select avg(tf.rating)::float as "avgRating"
-      from ticket_feedback tf
-      join tickets t on t.id = tf.ticket_id
-      where ${buildTicketWhere({
-        alias: "t",
-        createdFrom,
-        createdTo,
-        assignedTo,
-        ticketType,
-        priority,
-      })}
-        and tf.rating is not null
-    `,
-  )
-
-  const createdByMonthRows = await db.execute<{ month: string; count: number }>(
-    sql`
-      select
-        to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
-        count(*)::int as count
-      from tickets
-      where ${ticketWhere}
-      group by 1
-      order by 1 asc
-    `,
-  )
-
-  const resolvedByMonthRows = await db.execute<{ month: string; count: number }>(
-    sql`
-      select
-        to_char(date_trunc('month', resolved_at), 'YYYY-MM') as month,
-        count(*)::int as count
-      from tickets
-      where ${ticketWhere}
-        and resolved_at is not null
-      group by 1
-      order by 1 asc
-    `,
-  )
-
-  const openByMonthRows = await db.execute<{ month: string; count: number }>(
-    sql`
-      select
-        to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
-        count(*)::int as count
-      from tickets
-      where ${ticketWhere}
-        and coalesce(status, 'open') <> 'resolved'
-      group by 1
-      order by 1 asc
-    `,
-  )
-
-  const byTypeRows = await db.execute<{ ticketTypeId: number; count: number }>(
-    sql`
-      select ticket_type_id as "ticketTypeId", count(*)::int as count
-      from tickets
-      where ${ticketWhere}
-      group by ticket_type_id
-      order by count desc
-    `,
-  )
-
-  const byPriorityRows = await db.execute<{ priority: string; count: number }>(
-    sql`
-      select coalesce(priority, 'unknown') as priority, count(*)::int as count
-      from tickets
-      where ${ticketWhere}
-      group by 1
-      order by count desc
-    `,
-  )
-
-  const byPriorityStatusRows = await db.execute<{
-    priority: string
-    status: "open" | "resolved"
-    count: number
-  }>(
-    sql`
-      select
-        coalesce(priority, 'unknown') as priority,
-        case
-          when coalesce(status, 'open') <> 'resolved' then 'open'
-          else 'resolved'
-        end as status,
-        count(*)::int as count
-      from tickets
-      where ${ticketWhere}
-      group by 1, 2
-      order by 1 asc, 2 asc
-    `,
-  )
-
-  const createdByMonth = Object.fromEntries(
-    createdByMonthRows.rows.map((r) => [r.month, r.count]),
-  )
-  const resolvedByMonth = Object.fromEntries(
-    resolvedByMonthRows.rows.map((r) => [r.month, r.count]),
-  )
-  const openByMonth = Object.fromEntries(
-    openByMonthRows.rows.map((r) => [r.month, r.count]),
-  )
-  const avgResolutionHoursByMonth = Object.fromEntries(
-    avgResolutionByMonthRows.rows.map((r) => [r.month, r.avgResolutionHours]),
-  )
+  const row = metricsRows.rows[0]
 
   return NextResponse.json({
-    total: totalRows.rows[0]?.total ?? 0,
-    open: openRows.rows[0]?.open ?? 0,
-    avgResolutionHours: resolutionRows.rows[0]?.avgResolutionHours ?? null,
-    avgRating: ratingRows.rows[0]?.avgRating ?? null,
-    createdByMonth,
-    resolvedByMonth,
-    openByMonth,
-    avgResolutionHoursByMonth,
-    ticketsByType: byTypeRows.rows,
-    ticketsByPriority: byPriorityRows.rows,
-    ticketsByPriorityStatus: byPriorityStatusRows.rows,
+    total: row?.total ?? 0,
+    open: row?.open ?? 0,
+    avgResolutionHours: row?.avgResolutionHours ?? null,
+    avgRating: row?.avgRating ?? null,
+    createdByMonth: row?.createdByMonth ?? {},
+    resolvedByMonth: row?.resolvedByMonth ?? {},
+    openByMonth: row?.openByMonth ?? {},
+    avgResolutionHoursByMonth: row?.avgResolutionHoursByMonth ?? {},
+    ticketsByType: row?.ticketsByType ?? [],
+    ticketsByPriority: row?.ticketsByPriority ?? [],
+    ticketsByPriorityStatus: row?.ticketsByPriorityStatus ?? [],
   })
 }

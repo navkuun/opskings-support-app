@@ -1,0 +1,2 @@
+CREATE INDEX "idx_tickets_ticket_type_id_created_at" ON "tickets" USING btree ("ticket_type_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_tickets_priority_created_at" ON "tickets" USING btree ("priority","created_at");

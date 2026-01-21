@@ -222,10 +222,17 @@ export function ResponseTimePageClient() {
   ])
 
   React.useEffect(() => {
+    if (histogramBins === "default") {
+      setHistogram(null)
+      setHistogramLoading(false)
+      return
+    }
+
     const controller = new AbortController()
 
     async function run() {
       setHistogramLoading(true)
+      setHistogram(null)
 
       const params = new URLSearchParams()
       params.set("only", "histogram")
@@ -255,9 +262,7 @@ export function ResponseTimePageClient() {
       if (priorityOpParam) {
         params.set("priorityOp", priorityOpParam)
       }
-      if (histogramBins !== "default") {
-        params.set("bins", histogramBins)
-      }
+      params.set("bins", histogramBins)
 
       try {
         const res = await fetch(`/api/response-time/metrics?${params.toString()}`, {
@@ -482,6 +487,8 @@ export function ResponseTimePageClient() {
   const resolvedTotal = metrics?.resolvedTotal ?? 0
   const expectedTotal = metrics?.expectedTotal ?? 0
   const overdueStatTotal = metrics?.overdueTotal ?? 0
+  const histogramRows =
+    histogramBins === "default" ? metrics?.histogram ?? [] : histogram ?? []
 
   return (
     <div className="w-full pb-8">
@@ -540,7 +547,7 @@ export function ResponseTimePageClient() {
 
         <div className="grid gap-4 lg:grid-cols-2 lg:gap-x-0">
           <ResponseTimeHistogramChart
-            rows={histogram ?? metrics?.histogram ?? []}
+            rows={histogramRows}
             isFetching={histogramLoading}
             bins={histogramBins}
             onBinsChange={handleHistogramBinsChange}

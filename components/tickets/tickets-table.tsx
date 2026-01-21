@@ -96,6 +96,15 @@ function getPriorityDot(priority: string | null) {
   return "bg-muted-foreground/50"
 }
 
+const TITLE_TRUNCATE_AT = 40
+
+function truncateTitle(value: unknown) {
+  if (typeof value !== "string") return ""
+  const normalized = value.replace(/\s+/g, " ").trim()
+  if (normalized.length <= TITLE_TRUNCATE_AT) return normalized
+  return normalized.slice(0, Math.max(0, TITLE_TRUNCATE_AT - 1)).trimEnd() + "…"
+}
+
 const columns: ColumnDef<ClientTicketRow>[] = [
   {
     id: "select",
@@ -134,7 +143,16 @@ const columns: ColumnDef<ClientTicketRow>[] = [
     accessorKey: "title",
     header: "Title",
     size: 320,
-    cell: ({ row }) => <div className="font-medium">{row.getValue("title")}</div>,
+    cell: ({ row }) => {
+      const title = row.getValue("title")
+      const normalized = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : ""
+
+      return (
+        <div className="font-medium truncate" title={normalized}>
+          {truncateTitle(title)}
+        </div>
+      )
+    },
   },
   {
     accessorKey: "clientName",
