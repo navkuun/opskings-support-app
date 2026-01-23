@@ -1,19 +1,13 @@
-import fs from "node:fs/promises"
-import path from "node:path"
 import { CalculateMetadataFunction } from "remotion"
+import { staticFile } from "remotion"
 
 import type { CaptureManifest } from "./types"
 import type { FullVideoProps } from "./FullVideo"
 import { getIntroFrames, getOutroFrames, getTransitionTiming } from "./timing"
 
-async function readManifest(manifestPath: string) {
-  const resolved = path.resolve(process.cwd(), "public", manifestPath)
-  return fs.readFile(resolved, "utf8")
-}
-
 export const calculateMetadata: CalculateMetadataFunction<FullVideoProps> = async ({ props }) => {
-  const raw = await readManifest(props.manifestPath)
-  const manifest = JSON.parse(raw) as CaptureManifest
+  const response = await fetch(staticFile(props.manifestPath))
+  const manifest = (await response.json()) as CaptureManifest
 
   const fps = manifest.fps || 30
   const introFrames = getIntroFrames(fps)
