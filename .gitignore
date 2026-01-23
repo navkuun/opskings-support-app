@@ -52,3 +52,9 @@ next-env.d.ts
 
 core
 core.*
+
+# video automation (Remotion + Playwright)
+/video/node_modules
+/video/out
+/video/public/captures
+/video/.cache

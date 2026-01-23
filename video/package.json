@@ -1,0 +1,25 @@
+{
+  "name": "opskings-support-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/Root.tsx",
+    "render": "remotion render src/Root.tsx FullVideo out/video.mp4",
+    "capture": "node scripts/capture.mjs",
+    "make": "node scripts/make.mjs",
+    "clean": "node scripts/clean.mjs"
+  },
+  "dependencies": {
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/media": "^4.0.0",
+    "@remotion/transitions": "^4.0.0",
+    "playwright": "^1.57.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
