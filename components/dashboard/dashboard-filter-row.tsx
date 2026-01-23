@@ -132,6 +132,7 @@ export function DashboardFilterRow({
             placeholder="Ticket types…"
             ariaLabel="Filter by ticket type"
             emptyText="No ticket types found."
+            testId="dashboard-filter-ticket-type"
           />
         </div>
 
@@ -156,6 +157,7 @@ export function DashboardFilterRow({
             placeholder="Priorities…"
             ariaLabel="Filter by priority"
             emptyText="No priorities found."
+            testId="dashboard-filter-priority"
           />
         </div>
 
@@ -165,6 +167,7 @@ export function DashboardFilterRow({
             size="lg"
             className="h-full w-full rounded-none border-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/40 sm:h-full"
             onClick={onReset}
+            data-testid="dashboard-filter-reset"
           >
             Reset
           </Button>

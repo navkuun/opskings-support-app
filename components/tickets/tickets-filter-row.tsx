@@ -277,6 +277,7 @@ export function TicketsFilterRow({
               placeholder="Status…"
               ariaLabel="Filter by status"
               emptyText="No statuses found."
+              testId="tickets-filter-status"
             />
           </div>
 

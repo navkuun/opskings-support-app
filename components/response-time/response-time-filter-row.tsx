@@ -148,76 +148,79 @@ export function ResponseTimeFilterRow({
 
         <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-3 md:divide-y-0">
           <div className="flex h-10 items-stretch">
-            <MultiSelectCombobox
-              items={clientItems}
-              values={clientFilter.values}
-              onValuesChange={(values) =>
-                onClientChange({
-                  op: clientFilter.op,
-                  values: normalizeListFilterValues(clientFilter.op, values),
-                })
-              }
-              operator={clientFilter.op}
-              onOperatorChange={(op) =>
-                onClientChange({
-                  op,
-                  values: normalizeListFilterValues(op, clientFilter.values),
-                })
-              }
-              operatorAriaLabel="Clients filter operator"
-              placeholder="Clients…"
-              ariaLabel="Filter by client"
-              emptyText="No clients found."
-            />
-          </div>
+          <MultiSelectCombobox
+            items={clientItems}
+            values={clientFilter.values}
+            onValuesChange={(values) =>
+              onClientChange({
+                op: clientFilter.op,
+                values: normalizeListFilterValues(clientFilter.op, values),
+              })
+            }
+            operator={clientFilter.op}
+            onOperatorChange={(op) =>
+              onClientChange({
+                op,
+                values: normalizeListFilterValues(op, clientFilter.values),
+              })
+            }
+            operatorAriaLabel="Clients filter operator"
+            placeholder="Clients…"
+            ariaLabel="Filter by client"
+            emptyText="No clients found."
+            testId="response-time-filter-client"
+          />
+        </div>
 
           <div className="flex h-10 items-stretch">
-            <MultiSelectCombobox
-              items={ticketTypeItems}
-              values={ticketTypeFilter.values}
-              onValuesChange={(values) =>
-                onTicketTypeChange({
-                  op: ticketTypeFilter.op,
-                  values: normalizeListFilterValues(ticketTypeFilter.op, values),
-                })
-              }
-              operator={ticketTypeFilter.op}
-              onOperatorChange={(op) =>
-                onTicketTypeChange({
-                  op,
-                  values: normalizeListFilterValues(op, ticketTypeFilter.values),
-                })
-              }
-              operatorAriaLabel="Ticket type filter operator"
-              placeholder="Ticket types…"
-              ariaLabel="Filter by ticket type"
-              emptyText="No ticket types found."
-            />
-          </div>
+          <MultiSelectCombobox
+            items={ticketTypeItems}
+            values={ticketTypeFilter.values}
+            onValuesChange={(values) =>
+              onTicketTypeChange({
+                op: ticketTypeFilter.op,
+                values: normalizeListFilterValues(ticketTypeFilter.op, values),
+              })
+            }
+            operator={ticketTypeFilter.op}
+            onOperatorChange={(op) =>
+              onTicketTypeChange({
+                op,
+                values: normalizeListFilterValues(op, ticketTypeFilter.values),
+              })
+            }
+            operatorAriaLabel="Ticket type filter operator"
+            placeholder="Ticket types…"
+            ariaLabel="Filter by ticket type"
+            emptyText="No ticket types found."
+            testId="response-time-filter-ticket-type"
+          />
+        </div>
 
           <div className="flex h-10 items-stretch">
-            <MultiSelectCombobox
-              items={priorityOptions}
-              values={priorityFilter.values}
-              onValuesChange={(values) =>
-                onPriorityChange({
-                  op: priorityFilter.op,
-                  values: normalizeListFilterValues(priorityFilter.op, values),
-                })
-              }
-              operator={priorityFilter.op}
-              onOperatorChange={(op) =>
-                onPriorityChange({
-                  op,
-                  values: normalizeListFilterValues(op, priorityFilter.values),
-                })
-              }
-              operatorAriaLabel="Priority filter operator"
-              placeholder="Priorities…"
-              ariaLabel="Filter by priority"
-              emptyText="No priorities found."
-            />
-          </div>
+          <MultiSelectCombobox
+            items={priorityOptions}
+            values={priorityFilter.values}
+            onValuesChange={(values) =>
+              onPriorityChange({
+                op: priorityFilter.op,
+                values: normalizeListFilterValues(priorityFilter.op, values),
+              })
+            }
+            operator={priorityFilter.op}
+            onOperatorChange={(op) =>
+              onPriorityChange({
+                op,
+                values: normalizeListFilterValues(op, priorityFilter.values),
+              })
+            }
+            operatorAriaLabel="Priority filter operator"
+            placeholder="Priorities…"
+            ariaLabel="Filter by priority"
+            emptyText="No priorities found."
+            testId="response-time-filter-priority"
+          />
+        </div>
         </div>
       </div>
     </CardGroup>

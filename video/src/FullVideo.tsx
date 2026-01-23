@@ -17,10 +17,10 @@ export type FullVideoProps = {
 const SCENE_META: Array<{ id: string; title: string; subtitle?: string }> = [
   { id: "dashboard", title: "Dashboard overview", subtitle: "Filters + KPI trends" },
   { id: "tickets", title: "Ticket command center", subtitle: "Search and triage fast" },
-  { id: "create-ticket", title: "Create tickets", subtitle: "Structured intake with context" },
   { id: "response-time", title: "Response time", subtitle: "SLA performance at a glance" },
   { id: "teams", title: "Team performance", subtitle: "Agent output and quality" },
   { id: "clients", title: "Client analysis", subtitle: "Budget vs. support demand" },
+  { id: "command-palette", title: "Command palette", subtitle: "Jump anywhere in seconds" },
   { id: "client-tickets", title: "Client view", subtitle: "A focused ticket list" },
 ]
 

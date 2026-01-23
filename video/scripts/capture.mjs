@@ -14,16 +14,19 @@ const repoRoot = path.resolve(videoRoot, "..")
 
 const config = {
   baseURL: process.env.VIDEO_BASE_URL ?? "http://localhost:3000",
-  width: Number.parseInt(process.env.VIDEO_WIDTH ?? "1280", 10),
-  height: Number.parseInt(process.env.VIDEO_HEIGHT ?? "720", 10),
+  width: Number.parseInt(process.env.VIDEO_WIDTH ?? "1920", 10),
+  height: Number.parseInt(process.env.VIDEO_HEIGHT ?? "1080", 10),
   fps: 30,
-  pageSettleMs: Number.parseInt(process.env.VIDEO_PAGE_SETTLE_MS ?? "1200", 10),
-  actionPauseMs: Number.parseInt(process.env.VIDEO_ACTION_PAUSE_MS ?? "450", 10),
-  segmentPadMs: Number.parseInt(process.env.VIDEO_SEGMENT_PAD_MS ?? "1800", 10),
+  pageSettleMs: Number.parseInt(process.env.VIDEO_PAGE_SETTLE_MS ?? "1600", 10),
+  actionPauseMs: Number.parseInt(process.env.VIDEO_ACTION_PAUSE_MS ?? "650", 10),
+  segmentPadMs: Number.parseInt(process.env.VIDEO_SEGMENT_PAD_MS ?? "2400", 10),
 }
 
 const useFullscreen = process.env.VIDEO_FULLSCREEN !== "0"
 const fullscreenShortcut = process.env.VIDEO_FULLSCREEN_SHORTCUT ?? "F11"
+const headlessMode = process.env.VIDEO_HEADLESS !== "0"
+const effectiveFullscreen = useFullscreen && !headlessMode
+const cursorTransition = headlessMode ? "transform 0.02s linear" : "transform 0.06s ease"
 const runtimeSize = {
   width: config.width,
   height: config.height,
@@ -117,6 +120,15 @@ function bezier(t, p0, p1, p2, p3) {
 }
 
 function createMouseHelper(page, size) {
+  const stepDelayMin = headlessMode ? 1 : 2
+  const stepDelayMax = headlessMode ? 5 : 7
+  const clickPauseMin = headlessMode ? 12 : 20
+  const clickPauseMax = headlessMode ? 45 : 60
+  const clickHoldMin = headlessMode ? 18 : 28
+  const clickHoldMax = headlessMode ? 60 : 80
+  const clickAfterMin = headlessMode ? 50 : 80
+  const clickAfterMax = headlessMode ? 120 : 140
+
   const state = {
     x: size.width / 2,
     y: size.height / 2,
@@ -141,7 +153,7 @@ function createMouseHelper(page, size) {
       const t = i / steps
       const { x: nx, y: ny } = bezier(t, start, cp1, cp2, end)
       await page.mouse.move(nx, ny)
-      await sleep(rand(4, 12))
+      await sleep(rand(stepDelayMin, stepDelayMax))
     }
 
     state.x = end.x
@@ -157,19 +169,20 @@ function createMouseHelper(page, size) {
     }
     await locator.scrollIntoViewIfNeeded()
     await move(target.x, target.y)
-    await sleep(rand(30, 90))
+    await sleep(rand(clickPauseMin, clickPauseMax))
     await page.mouse.down()
-    await sleep(rand(40, 120))
+    await sleep(rand(clickHoldMin, clickHoldMax))
     await page.mouse.up()
-    await sleep(rand(120, 220))
+    await sleep(rand(clickAfterMin, clickAfterMax))
   }
 
   return { move, click }
 }
 
 async function installCursor(page) {
-  await page.addInitScript(() => {
-    const setup = () => {
+  await page.addInitScript(
+    ({ transition }) => {
+      const setup = () => {
       const cursor = document.createElement("div")
       cursor.id = "pw-cursor"
       cursor.style.position = "fixed"
@@ -182,7 +195,7 @@ async function installCursor(page) {
       cursor.style.boxShadow = "0 0 0 2px rgba(0,0,0,0.35), 0 6px 18px rgba(0,0,0,0.35)"
       cursor.style.pointerEvents = "none"
       cursor.style.zIndex = "999999"
-      cursor.style.transition = "transform 0.06s ease"
+      cursor.style.transition = transition
 
       const cursorRing = document.createElement("div")
       cursorRing.id = "pw-cursor-ring"
@@ -228,14 +241,16 @@ async function installCursor(page) {
         cursorRing.style.opacity = "0"
         updatePosition(lastX, lastY)
       })
-    }
+      }
 
-    if (document.readyState === "loading") {
-      window.addEventListener("DOMContentLoaded", setup, { once: true })
-    } else {
-      setup()
-    }
-  })
+      if (document.readyState === "loading") {
+        window.addEventListener("DOMContentLoaded", setup, { once: true })
+      } else {
+        setup()
+      }
+    },
+    { transition: cursorTransition },
+  )
 
   await page.addStyleTag({ content: "* { cursor: none !important; }" })
 }
@@ -263,7 +278,7 @@ async function tryHyprlandFullscreen() {
 }
 
 async function ensureFullscreen(page) {
-  if (!useFullscreen) return
+  if (!effectiveFullscreen) return
   await page.waitForTimeout(200)
   try {
     await page.bringToFront()
@@ -290,7 +305,7 @@ async function ensureFullscreen(page) {
 }
 
 async function resolveViewportSize(page) {
-  if (!useFullscreen) {
+  if (!effectiveFullscreen) {
     return { width: runtimeSize.width, height: runtimeSize.height }
   }
 
@@ -325,8 +340,8 @@ async function loginAndSaveState(browser, kind) {
   await fs.mkdir(cacheDir, { recursive: true })
 
   const context = await browser.newContext({
-    viewport: useFullscreen ? null : { width: runtimeSize.width, height: runtimeSize.height },
-    ...(useFullscreen ? {} : { deviceScaleFactor: 1 }),
+    viewport: effectiveFullscreen ? null : { width: runtimeSize.width, height: runtimeSize.height },
+    ...(effectiveFullscreen ? {} : { deviceScaleFactor: 1 }),
   })
   const page = await context.newPage()
   await installCursor(page)
@@ -356,12 +371,12 @@ async function recordSegment(browser, { id, storageState, run }) {
   await fs.mkdir(capturesDir, { recursive: true })
 
   const context = await browser.newContext({
-    viewport: useFullscreen ? null : { width: runtimeSize.width, height: runtimeSize.height },
-    ...(useFullscreen ? {} : { deviceScaleFactor: 1 }),
+    viewport: effectiveFullscreen ? null : { width: runtimeSize.width, height: runtimeSize.height },
+    ...(effectiveFullscreen ? {} : { deviceScaleFactor: 1 }),
     storageState,
     recordVideo: {
       dir: capturesDir,
-      ...(useFullscreen ? {} : { size: { width: runtimeSize.width, height: runtimeSize.height } }),
+      ...(effectiveFullscreen ? {} : { size: { width: runtimeSize.width, height: runtimeSize.height } }),
     },
   })
   const page = await context.newPage()
@@ -401,7 +416,19 @@ async function captureDashboard({ page, mouse }) {
   })
   await settle(page)
 
-  const ticketTypeInput = page.getByLabel("Filter by ticket type")
+  const chartCards = page.locator('[data-slot="card"]').filter({ hasText: /Tickets|Resolution|Priority|Type|Over/i })
+  const hoverCount = Math.min(3, await chartCards.count())
+  for (let i = 0; i < hoverCount; i += 1) {
+    const card = chartCards.nth(i)
+    await card.scrollIntoViewIfNeeded()
+    const box = await card.boundingBox()
+    if (box) {
+      await mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.4)
+      await page.waitForTimeout(420)
+    }
+  }
+
+  const ticketTypeInput = page.getByTestId("dashboard-filter-ticket-type")
   await mouse.click(ticketTypeInput)
   await page.waitForTimeout(config.actionPauseMs)
   const firstTicketType = page.locator('[data-slot="combobox-item"]').first()
@@ -412,7 +439,7 @@ async function captureDashboard({ page, mouse }) {
   await page.waitForTimeout(config.actionPauseMs)
   await page.keyboard.press("Escape")
 
-  const priorityInput = page.getByLabel("Filter by priority")
+  const priorityInput = page.getByTestId("dashboard-filter-priority")
   await mouse.click(priorityInput)
   await page.waitForTimeout(config.actionPauseMs)
   const priorityOption = page
@@ -425,6 +452,9 @@ async function captureDashboard({ page, mouse }) {
   await page.waitForTimeout(config.actionPauseMs)
   await page.keyboard.press("Escape")
 
+  await page.waitForTimeout(2000)
+  const resetButton = page.getByTestId("dashboard-filter-reset")
+  await mouse.click(resetButton)
   await settle(page)
 }
 
@@ -435,31 +465,19 @@ async function captureTickets({ page, mouse }) {
 
   const search = page.getByLabel("Search tickets")
   await mouse.click(search)
-  await humanType(page, "priority")
+  await humanType(page, "Feature Request")
   await page.waitForTimeout(config.pageSettleMs)
-  await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A")
-  await page.keyboard.press("Backspace")
-  await page.waitForTimeout(config.actionPauseMs)
 
-  await page.waitForTimeout(config.actionPauseMs)
-}
-
-async function selectFirstPopoverOption(page, mouse) {
-  const option = page.locator(".max-h-64 button").first()
-  await option.waitFor({ timeout: 10_000 })
-  await mouse.click(option)
-}
-
-async function captureCreateTicket({ page, mouse }) {
-  await page.goto(`${config.baseURL}/tickets?new=1`, { waitUntil: "domcontentloaded" })
-  await settle(page)
+  const createButton = page.getByRole("button", { name: "Create new ticket" })
+  await mouse.click(createButton)
   const titleInput = page.getByLabel("Ticket title")
-  if (!(await titleInput.isVisible())) {
-    const createButton = page.getByRole("button", { name: "Create new ticket" })
-    await createButton.waitFor({ timeout: 60_000 })
-    await mouse.click(createButton)
+  try {
+    await titleInput.waitFor({ timeout: 10_000 })
+  } catch {
+    await page.goto(`${config.baseURL}/tickets?new=1`, { waitUntil: "domcontentloaded" })
+    await settle(page)
+    await titleInput.waitFor({ timeout: 20_000 })
   }
-  await titleInput.waitFor({ timeout: 20_000 })
 
   await mouse.click(titleInput)
   await humanType(page, "Payment gateway lag")
@@ -476,7 +494,9 @@ async function captureCreateTicket({ page, mouse }) {
   await mouse.click(typeButton)
   await selectFirstPopoverOption(page, mouse)
 
-  const submit = page.getByRole("button", { name: /Create ticket/i })
+  await page.waitForTimeout(config.actionPauseMs)
+  const dialog = page.locator('[data-slot="dialog-popup"]')
+  const submit = dialog.getByRole("button", { name: /^Create ticket/i }).first()
   await mouse.click(submit)
 
   await page.waitForURL(/\/tickets\/\d+/, { timeout: 60_000 })
@@ -490,6 +510,76 @@ async function captureCreateTicket({ page, mouse }) {
   await page.waitForTimeout(600)
 }
 
+async function selectFirstPopoverOption(page, mouse) {
+  const comboboxItem = page.locator('[data-slot="combobox-item"]').first()
+  try {
+    await comboboxItem.waitFor({ timeout: 5_000 })
+    await mouse.click(comboboxItem)
+    return
+  } catch {
+    // fallthrough
+  }
+
+  const option = page.locator(".max-h-64 button").first()
+  try {
+    await option.waitFor({ timeout: 5_000 })
+    await mouse.click(option)
+    return
+  } catch {
+    // fallthrough
+  }
+
+  await page.keyboard.press("ArrowDown")
+  await page.waitForTimeout(200)
+  await page.keyboard.press("Enter")
+}
+
+async function selectFirstSelectItem(page, { excludeText } = {}) {
+  const locator = excludeText
+    ? page.locator('[data-slot="select-item"]').filter({ hasNotText: excludeText })
+    : page.locator('[data-slot="select-item"]')
+  const option = locator.first()
+  await option.waitFor({ timeout: 10_000 })
+  await option.click()
+}
+
+async function openCommandPalette(page) {
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K")
+  const input = page.getByPlaceholder("Search…")
+  await input.waitFor({ timeout: 10_000 })
+  return input
+}
+
+async function selectCommand(page, label, waitForUrl) {
+  const input = await openCommandPalette(page)
+  await page.waitForTimeout(config.actionPauseMs)
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A")
+  await page.keyboard.press("Backspace")
+  await humanType(page, label)
+  await page.waitForTimeout(config.actionPauseMs)
+  await page.keyboard.press("Enter")
+  if (waitForUrl) {
+    await page.waitForURL(waitForUrl, { timeout: 60_000 })
+  }
+  await page.waitForTimeout(config.pageSettleMs)
+}
+
+async function captureCommandPalette({ page }) {
+  await page.goto(`${config.baseURL}/dashboard`, { waitUntil: "domcontentloaded" })
+  await page.waitForResponse((res) => res.ok() && res.url().includes("/api/dashboard/metrics"), {
+    timeout: 60_000,
+  })
+  await settle(page)
+
+  await selectCommand(page, "Response time", "**/response-time")
+  await selectCommand(page, "Teams", "**/teams")
+  await selectCommand(page, "New ticket", "**/tickets?new=1")
+
+  const titleInput = page.getByLabel("Ticket title")
+  await titleInput.waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(config.pageSettleMs)
+}
+
 async function captureResponseTime({ page, mouse }) {
   await page.goto(`${config.baseURL}/response-time`, { waitUntil: "domcontentloaded" })
   await page.waitForResponse((res) => res.ok() && res.url().includes("/api/response-time/metrics"), {
@@ -497,7 +587,7 @@ async function captureResponseTime({ page, mouse }) {
   })
   await settle(page)
 
-  const priorityInput = page.getByLabel("Filter by priority")
+  const priorityInput = page.getByTestId("response-time-filter-priority")
   await mouse.click(priorityInput)
   await page.waitForTimeout(config.actionPauseMs)
   const urgentOption = page
@@ -507,6 +597,13 @@ async function captureResponseTime({ page, mouse }) {
   if (await urgentOption.count()) {
     await mouse.click(urgentOption)
   }
+  await page.waitForTimeout(config.actionPauseMs)
+  await page.keyboard.press("Escape")
+
+  const ticketTypeInput = page.getByTestId("response-time-filter-ticket-type")
+  await mouse.click(ticketTypeInput)
+  await page.waitForTimeout(config.actionPauseMs)
+  await selectFirstPopoverOption(page, mouse)
   await page.waitForTimeout(config.actionPauseMs)
   await page.keyboard.press("Escape")
 
@@ -525,6 +622,12 @@ async function captureTeams({ page, mouse }) {
   await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A")
   await page.keyboard.press("Backspace")
   await page.waitForTimeout(config.actionPauseMs)
+
+  const statusSelect = page.getByTestId("teams-status-filter")
+  await mouse.click(statusSelect)
+  await page.waitForTimeout(config.actionPauseMs)
+  await selectFirstSelectItem(page, { excludeText: /All status/i })
+  await page.waitForTimeout(config.actionPauseMs)
 }
 
 async function captureClients({ page, mouse }) {
@@ -539,6 +642,14 @@ async function captureClients({ page, mouse }) {
   await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A")
   await page.keyboard.press("Backspace")
   await page.waitForTimeout(config.actionPauseMs)
+
+  const planSelect = page.getByTestId("clients-plan-filter")
+  await mouse.click(planSelect)
+  await page.waitForTimeout(config.actionPauseMs)
+  const noPlan = page.locator('[data-slot="select-item"]').filter({ hasText: /No plan/i }).first()
+  await noPlan.waitFor({ timeout: 10_000 })
+  await noPlan.click()
+  await page.waitForTimeout(config.actionPauseMs)
 }
 
 async function captureClientTickets({ page, mouse }) {
@@ -548,11 +659,67 @@ async function captureClientTickets({ page, mouse }) {
 
   const search = page.getByLabel("Search tickets")
   await mouse.click(search)
-  await humanType(page, "invoice")
+  await humanType(page, "Account Upgrade")
   await page.waitForTimeout(config.pageSettleMs)
   await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A")
   await page.keyboard.press("Backspace")
   await page.waitForTimeout(config.actionPauseMs)
+
+  const statusFilter = page.getByTestId("tickets-filter-status")
+  await mouse.click(statusFilter)
+  await page.waitForTimeout(config.actionPauseMs)
+  const resolvedOption = page
+    .locator('[data-slot="combobox-item"]')
+    .filter({ hasText: /Resolved/i })
+    .first()
+  await resolvedOption.waitFor({ timeout: 10_000 })
+  await mouse.click(resolvedOption)
+  await page.waitForTimeout(config.actionPauseMs)
+  await page.keyboard.press("Escape")
+
+  const resolvedRows = page
+    .locator('tr[data-ticket-row-id]')
+    .filter({ hasText: /Resolved/i })
+
+  const totalRows = await resolvedRows.count()
+  for (let attempt = 0; attempt < Math.min(3, totalRows); attempt += 1) {
+    const row = resolvedRows.nth(attempt)
+    await row.waitFor({ timeout: 10_000 })
+    await row.click()
+    await page.waitForURL(/\/tickets\/\d+/, { timeout: 60_000 })
+    await page.waitForTimeout(config.pageSettleMs)
+
+    const feedbackHeading = page.getByText("Feedback", { exact: true })
+    if (await feedbackHeading.count()) {
+      await feedbackHeading.scrollIntoViewIfNeeded()
+      await page.waitForTimeout(config.actionPauseMs)
+    }
+
+    let star = page.getByRole("button", { name: "5 star" })
+    if (!(await star.isVisible().catch(() => false))) {
+      const editButton = page.getByRole("button", { name: "Edit" })
+      if (await editButton.isVisible().catch(() => false)) {
+        await mouse.click(editButton)
+        await page.waitForTimeout(config.actionPauseMs)
+      }
+      star = page.getByRole("button", { name: "5 star" })
+    }
+
+    if (await star.isVisible().catch(() => false)) {
+      await mouse.click(star)
+      const feedbackInput = page.getByPlaceholder("Optional feedback…")
+      await mouse.click(feedbackInput)
+      await humanType(page, "Quick resolution — appreciate the clear updates.")
+      const submitFeedback = page.getByRole("button", { name: /Submit feedback|Update feedback/i })
+      await mouse.click(submitFeedback)
+      await page.waitForTimeout(config.pageSettleMs)
+      return
+    }
+
+    await page.goBack()
+    await page.waitForURL("**/tickets", { timeout: 60_000 })
+    await page.waitForTimeout(config.actionPauseMs)
+  }
 }
 
 async function main() {
@@ -565,8 +732,8 @@ async function main() {
   log("Launching browser...")
   const executablePath = await resolveBrowserExecutable()
   const browser = await chromium.launch({
-    headless: false,
-    args: useFullscreen ? ["--start-maximized"] : [`--window-size=${config.width},${config.height}`],
+    headless: headlessMode,
+    args: effectiveFullscreen ? ["--start-maximized"] : [`--window-size=${config.width},${config.height}`],
     ...(executablePath ? { executablePath } : {}),
   })
 
@@ -585,12 +752,6 @@ async function main() {
       storageState: internalStatePath,
       run: captureTickets,
     })
-    log("Capturing create ticket flow...")
-    await recordSegment(browser, {
-      id: "create-ticket",
-      storageState: internalStatePath,
-      run: captureCreateTicket,
-    })
     log("Capturing response time...")
     await recordSegment(browser, {
       id: "response-time",
@@ -608,6 +769,12 @@ async function main() {
       id: "clients",
       storageState: internalStatePath,
       run: captureClients,
+    })
+    log("Capturing command palette...")
+    await recordSegment(browser, {
+      id: "command-palette",
+      storageState: internalStatePath,
+      run: captureCommandPalette,
     })
     log("Logging in as client user...")
     await loginAndSaveState(browser, "client")

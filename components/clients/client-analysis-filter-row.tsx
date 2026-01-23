@@ -199,7 +199,11 @@ export function ClientAnalysisFilterRow({
         <div className="grid grid-cols-2 divide-x divide-y divide-border md:divide-y-0 md:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
           <div className="flex h-10 items-stretch">
             <Select value={plan} onValueChange={(next) => onPlanChange(next ?? "any")}>
-              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
+              <SelectTrigger
+                size="lg"
+                className="w-full rounded-none border-0 bg-transparent"
+                data-testid="clients-plan-filter"
+              >
                 <SelectValue>
                   {(value: unknown) =>
                     renderSingleSelectValue({ value, placeholder: "Plan type…" })

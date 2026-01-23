@@ -39,6 +39,7 @@ export function MultiSelectCombobox({
   ariaLabel,
   emptyText,
   className,
+  testId,
 }: {
   items: readonly FilterOption[]
   values: readonly string[]
@@ -52,6 +53,7 @@ export function MultiSelectCombobox({
   ariaLabel: string
   emptyText: string
   className?: string
+  testId?: string
 }) {
   const [open, setOpen] = React.useState(false)
 
@@ -98,6 +100,7 @@ export function MultiSelectCombobox({
           "no-scrollbar h-full w-full flex-nowrap overflow-x-auto overflow-y-hidden rounded-none border-0 bg-transparent px-2 py-0 shadow-none before:hidden focus-within:border-0 focus-within:ring-0 [&_[data-slot=combobox-chip]]:max-w-full [&_[data-slot=combobox-chip]]:shrink-0",
           className,
         )}
+        data-testid={testId}
       >
         <ComboboxValue>
           {(value: FilterOption[]) => (

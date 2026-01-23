@@ -283,7 +283,11 @@ export function TeamsFilterRow({
 
           <div className="col-span-2 flex h-10 items-stretch md:col-span-1">
             <Select value={value.status} onValueChange={(next) => onValueChange({ status: next ?? "all" })}>
-              <SelectTrigger size="lg" className="w-full rounded-none border-0 bg-transparent">
+              <SelectTrigger
+                size="lg"
+                className="w-full rounded-none border-0 bg-transparent"
+                data-testid="teams-status-filter"
+              >
                 <SelectValue>
                   {(val: unknown) => {
                     if (!isString(val) || !val.trim() || val === "all") {
