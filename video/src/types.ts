@@ -1,9 +1,12 @@
+export type CaptureSegmentKind = "page" | "tool"
+
 export type CaptureSegment = {
   id: string
-  file: string
+  file?: string
   still?: string
   durationMs: number
   durationInFrames: number
+  kind?: CaptureSegmentKind
 }
 
 export type CaptureManifest = {

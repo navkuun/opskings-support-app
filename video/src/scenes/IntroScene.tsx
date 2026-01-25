@@ -2,7 +2,7 @@ import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame, us
 
 export function IntroScene() {
   const frame = useCurrentFrame()
-  const { fps, width, height } = useVideoConfig()
+  const { fps, width, height, durationInFrames } = useVideoConfig()
 
   const crownStart = fps * 0.05
   const crownEnd = fps * 0.75
@@ -39,10 +39,10 @@ export function IntroScene() {
   const xScale = interpolate(xProgress, [0, 1], [0.6, 1])
   const xRotate = interpolate(xProgress, [0, 1], [-12, 0])
 
-  const rowGap = Math.min(width * 0.045, 56)
-  const exampleWidth = Math.min(width * 0.24, 320)
-  const xSize = Math.min(width * 0.085, 82)
-  const logoWidth = Math.min(width * 0.36, 460)
+  const rowGap = width * 0.045
+  const exampleWidth = width * 0.24
+  const xSize = width * 0.085
+  const logoWidth = width * 0.36
   const logoHeight = (logoWidth * 44) / 304
   const rowWidth = exampleWidth + xSize + logoWidth + rowGap * 2
   const rowLeft = (width - rowWidth) / 2
@@ -101,11 +101,21 @@ export function IntroScene() {
   })
   const rowTranslateX = interpolate(slideProgress, [0, 1], [rowLeftStart - rowLeft, 0])
   const rightSlideIn = interpolate(slideProgress, [0, 1], [24, 0])
+  const outroStart = Math.max(0, durationInFrames - Math.round(fps * 0.28))
+  const outroEnd = durationInFrames
+  const outroProgress = interpolate(frame, [outroStart, outroEnd], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.in(Easing.cubic),
+  })
+  const outroRotate = interpolate(outroProgress, [0, 1], [0, -75])
+  const outroLift = interpolate(outroProgress, [0, 1], [0, -28])
+  const outroOpacity = interpolate(outroProgress, [0, 1], [1, 0])
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: "#ffffff",
+        backgroundColor: "#101014",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -120,7 +130,9 @@ export function IntroScene() {
           display: "flex",
           alignItems: "center",
           gap: rowGap,
-          transform: `translateX(${rowTranslateX}px)`,
+          transform: `translateX(${rowTranslateX}px) translateY(${outroLift}px) rotateX(${outroRotate}deg)`,
+          transformOrigin: "center bottom",
+          opacity: outroOpacity,
         }}
       >
         <div
@@ -147,7 +159,7 @@ export function IntroScene() {
           />
 
           <Img
-            src={staticFile("opskings-full-black.svg")}
+            src={staticFile("opskings-full-white.svg")}
             alt="OpsKings logo"
             style={{
               position: "absolute",
@@ -161,7 +173,7 @@ export function IntroScene() {
             }}
           />
           <Img
-            src={staticFile("opskings-full-black.svg")}
+            src={staticFile("opskings-full-white.svg")}
             alt="OpsKings logo"
             style={{
               position: "absolute",
@@ -185,13 +197,13 @@ export function IntroScene() {
           }}
         >
           <svg viewBox="0 0 100 100" width="100%" height="100%">
-            <line x1="12" y1="12" x2="88" y2="88" stroke="#111111" strokeWidth="6" strokeLinecap="butt" />
-            <line x1="88" y1="12" x2="12" y2="88" stroke="#111111" strokeWidth="6" strokeLinecap="butt" />
+            <line x1="12" y1="12" x2="88" y2="88" stroke="#ffffff" strokeWidth="6" strokeLinecap="butt" />
+            <line x1="88" y1="12" x2="12" y2="88" stroke="#ffffff" strokeWidth="6" strokeLinecap="butt" />
           </svg>
         </div>
 
         <Img
-          src={staticFile("example-logo.svg")}
+          src={staticFile("example-logo-dark.svg")}
           alt="Example logo"
           style={{
             width: exampleWidth,

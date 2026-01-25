@@ -447,7 +447,7 @@ async function loginAndSaveState(browser, kind) {
   await context.close()
 }
 
-async function recordSegment(browser, { id, storageState, run }) {
+async function recordSegment(browser, { id, storageState, run, kind = "page" }) {
   await fs.mkdir(capturesDir, { recursive: true })
 
   const context = await browser.newContext({
@@ -487,6 +487,35 @@ async function recordSegment(browser, { id, storageState, run }) {
     still: runResult?.stillFile,
     durationMs: Math.round(durationMs),
     durationInFrames,
+    kind,
+  })
+}
+
+async function recordStill(browser, { id, storageState, run, kind = "page" }) {
+  await fs.mkdir(capturesDir, { recursive: true })
+
+  const context = await browser.newContext({
+    viewport: effectiveFullscreen ? null : { width: runtimeSize.width, height: runtimeSize.height },
+    ...(effectiveFullscreen ? {} : { deviceScaleFactor: 1 }),
+    storageState,
+  })
+  const page = await context.newPage()
+  await installCursor(page)
+  await ensureFullscreen(page)
+  const size = await resolveViewportSize(page)
+  const mouse = createMouseHelper(page, size)
+
+  const runResult = await run({ page, mouse, id })
+  await page.waitForTimeout(config.pageSettleMs)
+  await context.close()
+
+  manifest.segments.push({
+    id,
+    file: undefined,
+    still: runResult?.stillFile,
+    durationMs: 1,
+    durationInFrames: 1,
+    kind,
   })
 }
 
@@ -825,18 +854,42 @@ async function main() {
       id: "dashboard-filters",
       storageState: internalStatePath,
       run: captureDashboard,
+      kind: "page",
     })
     log("Capturing ticket creation...")
     await recordSegment(browser, {
       id: "ticket-create",
       storageState: internalStatePath,
       run: captureTickets,
+      kind: "page",
     })
     log("Capturing command palette...")
     await recordSegment(browser, {
       id: "command-palette",
       storageState: internalStatePath,
       run: captureCommandPalette,
+      kind: "tool",
+    })
+    log("Capturing response time (still)...")
+    await recordStill(browser, {
+      id: "response-time",
+      storageState: internalStatePath,
+      run: captureResponseTime,
+      kind: "page",
+    })
+    log("Capturing teams (still)...")
+    await recordStill(browser, {
+      id: "teams",
+      storageState: internalStatePath,
+      run: captureTeams,
+      kind: "page",
+    })
+    log("Capturing clients (still)...")
+    await recordStill(browser, {
+      id: "clients",
+      storageState: internalStatePath,
+      run: captureClients,
+      kind: "page",
     })
 
     const manifestPath = path.join(capturesDir, "manifest.json")

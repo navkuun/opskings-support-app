@@ -3,7 +3,8 @@ import { ibmPlexMono } from "../fonts"
 
 export function OutroScene() {
   const frame = useCurrentFrame()
-  const { fps } = useVideoConfig()
+  const { fps, width } = useVideoConfig()
+  const scale = width / 1280
 
   const fadeIn = interpolate(frame, [0, fps * 0.6], [0, 1], {
     extrapolateRight: "clamp",
@@ -20,8 +21,8 @@ export function OutroScene() {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: "#0b0f14",
-        color: "#f8f8f8",
+        backgroundColor: "#101014",
+        color: "#ffffff",
         fontFamily: ibmPlexMono,
         display: "flex",
         alignItems: "center",
@@ -30,11 +31,19 @@ export function OutroScene() {
     >
       <div style={{ textAlign: "center", opacity }}>
         <Img
-          src={staticFile("logo-full.png")}
+          src={staticFile("opskings-full-white.svg")}
           alt="OpsKings"
-          style={{ width: 280, height: "auto", margin: "0 auto" }}
+          style={{ width: 280 * scale, height: "auto", margin: "0 auto" }}
         />
-        <div style={{ marginTop: 20, fontSize: 20, fontWeight: 600, color: "#e6e2db" }}>
+        <div
+          style={{
+            marginTop: 20 * scale,
+            fontSize: 20 * scale,
+            fontWeight: 600,
+            color: "#ffffff",
+            textShadow: "0 8px 20px rgba(0,0,0,0.25), 0 0 14px rgba(255,255,255,0.12)",
+          }}
+        >
           Built for teams who move fast
         </div>
         <div
