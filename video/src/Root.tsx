@@ -18,6 +18,7 @@ export const RemotionRoot = () => {
           height={720}
           defaultProps={{
             manifestPath: "captures/manifest.json",
+            useStills: true,
           }}
           calculateMetadata={calculateMetadata}
         />

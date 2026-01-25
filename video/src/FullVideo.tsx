@@ -1,84 +1,46 @@
 import type { ReactNode } from "react"
-import { AbsoluteFill } from "remotion"
-import { TransitionSeries } from "@remotion/transitions"
-import { fade } from "@remotion/transitions/fade"
+import { AbsoluteFill, Img, Sequence, staticFile } from "remotion"
+import { Audio } from "@remotion/media"
 
-import { Scene } from "./components/Scene"
-import { IntroScene } from "./scenes/IntroScene"
-import { OutroScene } from "./scenes/OutroScene"
+import { VideoClip } from "./components/VideoClip"
 import type { CaptureManifest } from "./types"
-import { getIntroFrames, getOutroFrames, getTransitionTiming } from "./timing"
 
 export type FullVideoProps = {
   manifestPath: string
   manifest?: CaptureManifest
+  useStills?: boolean
 }
 
-const SCENE_META: Array<{ id: string; title: string; subtitle?: string }> = [
-  { id: "dashboard", title: "Dashboard overview", subtitle: "Filters + KPI trends" },
-  { id: "tickets", title: "Ticket command center", subtitle: "Search and triage fast" },
-  { id: "response-time", title: "Response time", subtitle: "SLA performance at a glance" },
-  { id: "teams", title: "Team performance", subtitle: "Agent output and quality" },
-  { id: "clients", title: "Client analysis", subtitle: "Budget vs. support demand" },
-  { id: "command-palette", title: "Command palette", subtitle: "Jump anywhere in seconds" },
-  { id: "client-tickets", title: "Client view", subtitle: "A focused ticket list" },
-]
-
-export function FullVideo({ manifest }: FullVideoProps) {
+export function FullVideo({ manifest, useStills = false }: FullVideoProps) {
   if (!manifest) {
     return <AbsoluteFill style={{ backgroundColor: "#0b0f14" }} />
   }
 
-  const transitionTiming = getTransitionTiming(manifest.fps)
   const sequences: ReactNode[] = []
+  let from = 0
 
-  sequences.push(
-    <TransitionSeries.Sequence key="intro" durationInFrames={getIntroFrames(manifest.fps)}>
-      <IntroScene />
-    </TransitionSeries.Sequence>,
-  )
-  sequences.push(
-    <TransitionSeries.Transition key="intro-transition" presentation={fade()} timing={transitionTiming} />,
-  )
-
-  manifest.segments.forEach((segment, index) => {
-    const meta = SCENE_META.find((entry) => entry.id === segment.id)
+  manifest.segments.forEach((segment) => {
+    const still = useStills ? segment.still : undefined
     sequences.push(
-      <TransitionSeries.Sequence key={segment.id} durationInFrames={segment.durationInFrames}>
-        <Scene
-          title={meta?.title ?? segment.id}
-          subtitle={meta?.subtitle}
-          file={segment.file}
-          width={manifest.width}
-          height={manifest.height}
-          durationInFrames={segment.durationInFrames}
-        />
-      </TransitionSeries.Sequence>,
+      <Sequence key={segment.id} from={from} durationInFrames={segment.durationInFrames}>
+        {still ? (
+          <Img
+            src={staticFile(still)}
+            style={{ width: manifest.width, height: manifest.height, objectFit: "cover" }}
+          />
+        ) : (
+          <VideoClip file={segment.file} width={manifest.width} height={manifest.height} />
+        )}
+      </Sequence>,
     )
-
-    if (index < manifest.segments.length - 1) {
-      sequences.push(
-        <TransitionSeries.Transition
-          key={`${segment.id}-transition`}
-          presentation={fade()}
-          timing={transitionTiming}
-        />,
-      )
-    }
+    from += segment.durationInFrames
   })
-
-  sequences.push(
-    <TransitionSeries.Transition key="outro-transition" presentation={fade()} timing={transitionTiming} />,
-  )
-  sequences.push(
-    <TransitionSeries.Sequence key="outro" durationInFrames={getOutroFrames(manifest.fps)}>
-      <OutroScene />
-    </TransitionSeries.Sequence>,
-  )
+  const totalFrames = from
 
   return (
-    <AbsoluteFill>
-      <TransitionSeries>{sequences}</TransitionSeries>
+    <AbsoluteFill style={{ backgroundColor: "#0b0f14" }}>
+      <Audio src={staticFile("music.mp3")} volume={0.25} trimAfter={totalFrames} />
+      {sequences}
     </AbsoluteFill>
   )
 }

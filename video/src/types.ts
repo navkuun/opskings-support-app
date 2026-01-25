@@ -1,6 +1,7 @@
 export type CaptureSegment = {
   id: string
   file: string
+  still?: string
   durationMs: number
   durationInFrames: number
 }

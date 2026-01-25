@@ -14,8 +14,8 @@ const repoRoot = path.resolve(videoRoot, "..")
 
 const config = {
   baseURL: process.env.VIDEO_BASE_URL ?? "http://localhost:3000",
-  width: Number.parseInt(process.env.VIDEO_WIDTH ?? "1920", 10),
-  height: Number.parseInt(process.env.VIDEO_HEIGHT ?? "1080", 10),
+  width: Number.parseInt(process.env.VIDEO_WIDTH ?? "2560", 10),
+  height: Number.parseInt(process.env.VIDEO_HEIGHT ?? "1440", 10),
   fps: 30,
   pageSettleMs: Number.parseInt(process.env.VIDEO_PAGE_SETTLE_MS ?? "1600", 10),
   actionPauseMs: Number.parseInt(process.env.VIDEO_ACTION_PAUSE_MS ?? "650", 10),
@@ -26,7 +26,6 @@ const useFullscreen = process.env.VIDEO_FULLSCREEN !== "0"
 const fullscreenShortcut = process.env.VIDEO_FULLSCREEN_SHORTCUT ?? "F11"
 const headlessMode = process.env.VIDEO_HEADLESS !== "0"
 const effectiveFullscreen = useFullscreen && !headlessMode
-const cursorTransition = headlessMode ? "transform 0.02s linear" : "transform 0.06s ease"
 const runtimeSize = {
   width: config.width,
   height: config.height,
@@ -35,6 +34,7 @@ const runtimeSize = {
 const execFileAsync = promisify(execFile)
 
 const capturesDir = path.join(videoRoot, "public", "captures")
+const stillsDir = path.join(capturesDir, "stills")
 const cacheDir = path.join(videoRoot, ".cache")
 const internalStatePath = path.join(cacheDir, "storage-internal.json")
 const clientStatePath = path.join(cacheDir, "storage-client.json")
@@ -120,8 +120,8 @@ function bezier(t, p0, p1, p2, p3) {
 }
 
 function createMouseHelper(page, size) {
-  const stepDelayMin = headlessMode ? 1 : 2
-  const stepDelayMax = headlessMode ? 5 : 7
+  const stepDelayMin = headlessMode ? 0 : 1
+  const stepDelayMax = headlessMode ? 2 : 3
   const clickPauseMin = headlessMode ? 12 : 20
   const clickPauseMax = headlessMode ? 45 : 60
   const clickHoldMin = headlessMode ? 18 : 28
@@ -138,15 +138,15 @@ function createMouseHelper(page, size) {
     const start = { x: state.x, y: state.y }
     const end = { x, y }
     const distance = Math.hypot(end.x - start.x, end.y - start.y)
-    const steps = Math.max(18, Math.min(70, Math.round(distance / 8)))
+    const steps = Math.max(12, Math.min(50, Math.round(distance / 12)))
 
     const cp1 = {
-      x: start.x + rand(-80, 80),
-      y: start.y + rand(-60, 60),
+      x: start.x + rand(-40, 40),
+      y: start.y + rand(-30, 30),
     }
     const cp2 = {
-      x: end.x + rand(-80, 80),
-      y: end.y + rand(-60, 60),
+      x: end.x + rand(-40, 40),
+      y: end.y + rand(-30, 30),
     }
 
     for (let i = 1; i <= steps; i++) {
@@ -180,67 +180,106 @@ function createMouseHelper(page, size) {
 }
 
 async function installCursor(page) {
+  const cursorPath = path.join(videoRoot, "public", "cursor.svg")
+  let cursorSvg = ""
+  try {
+    cursorSvg = await fs.readFile(cursorPath, "utf-8")
+  } catch (error) {
+    throw new Error(`Missing cursor.svg at ${cursorPath}.`, { cause: error })
+  }
+
   await page.addInitScript(
-    ({ transition }) => {
+    ({ svg }) => {
       const setup = () => {
-      const cursor = document.createElement("div")
-      cursor.id = "pw-cursor"
-      cursor.style.position = "fixed"
-      cursor.style.top = "0"
-      cursor.style.left = "0"
-      cursor.style.width = "14px"
-      cursor.style.height = "14px"
-      cursor.style.borderRadius = "999px"
-      cursor.style.background = "rgba(255,255,255,0.9)"
-      cursor.style.boxShadow = "0 0 0 2px rgba(0,0,0,0.35), 0 6px 18px rgba(0,0,0,0.35)"
-      cursor.style.pointerEvents = "none"
-      cursor.style.zIndex = "999999"
-      cursor.style.transition = transition
+        const cursor = document.createElement("div")
+        cursor.id = "pw-cursor"
+        cursor.style.position = "fixed"
+        cursor.style.top = "0"
+        cursor.style.left = "0"
+        cursor.style.width = "48px"
+        cursor.style.height = "48px"
+        cursor.style.pointerEvents = "none"
+        cursor.style.zIndex = "999999"
+        cursor.style.transition = "opacity 0.12s ease"
+        cursor.style.transformOrigin = "0 0"
+        cursor.style.filter = "drop-shadow(0 6px 12px rgba(0,0,0,0.35))"
+        cursor.style.willChange = "transform, opacity"
+        cursor.innerHTML = svg
 
-      const cursorRing = document.createElement("div")
-      cursorRing.id = "pw-cursor-ring"
-      cursorRing.style.position = "fixed"
-      cursorRing.style.top = "0"
-      cursorRing.style.left = "0"
-      cursorRing.style.width = "32px"
-      cursorRing.style.height = "32px"
-      cursorRing.style.borderRadius = "999px"
-      cursorRing.style.border = "1px solid rgba(255,255,255,0.5)"
-      cursorRing.style.pointerEvents = "none"
-      cursorRing.style.zIndex = "999998"
-      cursorRing.style.opacity = "0"
+        document.documentElement.style.cursor = "none"
+        document.body.appendChild(cursor)
 
-      document.documentElement.style.cursor = "none"
-      document.body.appendChild(cursor)
-      document.body.appendChild(cursorRing)
+        let targetX = 0
+        let targetY = 0
+        let currentX = 0
+        let currentY = 0
+        let targetScale = 1
+        let currentScale = 1
+        let hasPosition = false
+        let typingTimeout = null
 
-      let scale = 1
-      let ringScale = 1
-      let lastX = 0
-      let lastY = 0
+        const speed = 0.45
+        const scaleSpeed = 0.35
 
-      const updatePosition = (x, y) => {
-        lastX = x
-        lastY = y
-        cursor.style.transform = `translate(${x}px, ${y}px) scale(${scale})`
-        cursorRing.style.transform = `translate(${x}px, ${y}px) scale(${ringScale})`
-      }
+        const hideCursor = () => {
+          cursor.dataset.typingHidden = "1"
+          cursor.style.opacity = "0"
+        }
 
-      document.addEventListener("mousemove", (event) => updatePosition(event.clientX, event.clientY))
+        const showCursor = () => {
+          if (cursor.dataset.typingHidden) {
+            cursor.style.opacity = ""
+            delete cursor.dataset.typingHidden
+          }
+        }
 
-      document.addEventListener("mousedown", () => {
-        scale = 0.9
-        ringScale = 0.9
-        cursorRing.style.opacity = "1"
-        updatePosition(lastX, lastY)
-      })
+        const tick = () => {
+          if (hasPosition) {
+            currentX += (targetX - currentX) * speed
+            currentY += (targetY - currentY) * speed
+            currentScale += (targetScale - currentScale) * scaleSpeed
 
-      document.addEventListener("mouseup", () => {
-        scale = 1
-        ringScale = 1
-        cursorRing.style.opacity = "0"
-        updatePosition(lastX, lastY)
-      })
+            if (Math.abs(targetX - currentX) < 0.1) currentX = targetX
+            if (Math.abs(targetY - currentY) < 0.1) currentY = targetY
+            if (Math.abs(targetScale - currentScale) < 0.002) currentScale = targetScale
+
+            cursor.style.transform = `translate(${currentX}px, ${currentY}px) scale(${currentScale})`
+          }
+          requestAnimationFrame(tick)
+        }
+
+        requestAnimationFrame(tick)
+
+        document.addEventListener("mousemove", (event) => {
+          targetX = event.clientX
+          targetY = event.clientY
+          if (!hasPosition) {
+            currentX = targetX
+            currentY = targetY
+            hasPosition = true
+          }
+        })
+
+        document.addEventListener("mousedown", () => {
+          targetScale = 0.92
+        })
+
+        document.addEventListener("mouseup", () => {
+          targetScale = 1
+        })
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Shift" || event.key === "Control" || event.key === "Alt" || event.key === "Meta") {
+            return
+          }
+          if (typingTimeout) window.clearTimeout(typingTimeout)
+          hideCursor()
+        })
+
+        document.addEventListener("keyup", () => {
+          if (typingTimeout) window.clearTimeout(typingTimeout)
+          typingTimeout = window.setTimeout(showCursor, 140)
+        })
       }
 
       if (document.readyState === "loading") {
@@ -249,7 +288,7 @@ async function installCursor(page) {
         setup()
       }
     },
-    { transition: cursorTransition },
+    { svg: cursorSvg },
   )
 
   await page.addStyleTag({ content: "* { cursor: none !important; }" })
@@ -335,6 +374,47 @@ async function settle(page, ms = config.pageSettleMs) {
   await page.waitForTimeout(ms)
 }
 
+async function setCursorVisibility(page, visible) {
+  await page.evaluate((shouldShow) => {
+    const cursor = document.getElementById("pw-cursor")
+    const ring = document.getElementById("pw-cursor-ring")
+
+    if (cursor) {
+      if (shouldShow) {
+        const prev = cursor.dataset.prevOpacity ?? ""
+        cursor.style.opacity = prev
+        delete cursor.dataset.prevOpacity
+      } else if (cursor.dataset.prevOpacity === undefined) {
+        cursor.dataset.prevOpacity = cursor.style.opacity ?? ""
+        cursor.style.opacity = "0"
+      }
+    }
+
+    if (ring) {
+      if (shouldShow) {
+        const prev = ring.dataset.prevOpacity ?? ""
+        ring.style.opacity = prev
+        delete ring.dataset.prevOpacity
+      } else if (ring.dataset.prevOpacity === undefined) {
+        ring.dataset.prevOpacity = ring.style.opacity ?? ""
+        ring.style.opacity = "0"
+      }
+    }
+  }, visible)
+}
+
+async function captureStill(page, id) {
+  await fs.mkdir(stillsDir, { recursive: true })
+  const stillPath = path.join(stillsDir, `${id}.png`)
+  try {
+    await setCursorVisibility(page, false)
+    await page.screenshot({ path: stillPath })
+  } finally {
+    await setCursorVisibility(page, true)
+  }
+  return `captures/stills/${id}.png`
+}
+
 async function loginAndSaveState(browser, kind) {
   const statePath = kind === "internal" ? internalStatePath : clientStatePath
   await fs.mkdir(cacheDir, { recursive: true })
@@ -387,7 +467,7 @@ async function recordSegment(browser, { id, storageState, run }) {
 
   const video = page.video()
   const startedAt = performance.now()
-  await run({ page, mouse })
+  const runResult = await run({ page, mouse, id })
   await page.waitForTimeout(config.segmentPadMs)
   await context.close()
 
@@ -404,17 +484,19 @@ async function recordSegment(browser, { id, storageState, run }) {
   manifest.segments.push({
     id,
     file: `captures/${id}.webm`,
+    still: runResult?.stillFile,
     durationMs: Math.round(durationMs),
     durationInFrames,
   })
 }
 
-async function captureDashboard({ page, mouse }) {
+async function captureDashboard({ page, mouse, id }) {
   await page.goto(`${config.baseURL}/dashboard`, { waitUntil: "domcontentloaded" })
   await page.waitForResponse((res) => res.ok() && res.url().includes("/api/dashboard/metrics"), {
     timeout: 60_000,
   })
   await settle(page)
+  const stillFile = await captureStill(page, id)
 
   const chartCards = page.locator('[data-slot="card"]').filter({ hasText: /Tickets|Resolution|Priority|Type|Over/i })
   const hoverCount = Math.min(3, await chartCards.count())
@@ -456,17 +538,14 @@ async function captureDashboard({ page, mouse }) {
   const resetButton = page.getByTestId("dashboard-filter-reset")
   await mouse.click(resetButton)
   await settle(page)
+  return { stillFile }
 }
 
-async function captureTickets({ page, mouse }) {
+async function captureTickets({ page, mouse, id }) {
   await page.goto(`${config.baseURL}/tickets`, { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: "Create new ticket" }).waitFor({ timeout: 60_000 })
   await settle(page)
-
-  const search = page.getByLabel("Search tickets")
-  await mouse.click(search)
-  await humanType(page, "Feature Request")
-  await page.waitForTimeout(config.pageSettleMs)
+  const stillFile = await captureStill(page, id)
 
   const createButton = page.getByRole("button", { name: "Create new ticket" })
   await mouse.click(createButton)
@@ -501,13 +580,7 @@ async function captureTickets({ page, mouse }) {
 
   await page.waitForURL(/\/tickets\/\d+/, { timeout: 60_000 })
   await page.waitForTimeout(600)
-
-  const replyInput = page.getByPlaceholder("Write a reply…")
-  await mouse.click(replyInput)
-  await humanType(page, "Thanks for flagging — we’re checking logs and will update shortly.")
-  const sendButton = page.getByRole("button", { name: "Send" })
-  await mouse.click(sendButton)
-  await page.waitForTimeout(600)
+  return { stillFile }
 }
 
 async function selectFirstPopoverOption(page, mouse) {
@@ -564,28 +637,28 @@ async function selectCommand(page, label, waitForUrl) {
   await page.waitForTimeout(config.pageSettleMs)
 }
 
-async function captureCommandPalette({ page }) {
+async function captureCommandPalette({ page, id }) {
   await page.goto(`${config.baseURL}/dashboard`, { waitUntil: "domcontentloaded" })
   await page.waitForResponse((res) => res.ok() && res.url().includes("/api/dashboard/metrics"), {
     timeout: 60_000,
   })
   await settle(page)
+  const stillFile = await captureStill(page, id)
 
-  await selectCommand(page, "Response time", "**/response-time")
-  await selectCommand(page, "Teams", "**/teams")
-  await selectCommand(page, "New ticket", "**/tickets?new=1")
-
-  const titleInput = page.getByLabel("Ticket title")
-  await titleInput.waitFor({ timeout: 20_000 })
+  const input = await openCommandPalette(page)
+  await page.waitForTimeout(config.actionPauseMs)
+  await humanType(page, "Response time")
   await page.waitForTimeout(config.pageSettleMs)
+  return { stillFile }
 }
 
-async function captureResponseTime({ page, mouse }) {
+async function captureResponseTime({ page, mouse, id }) {
   await page.goto(`${config.baseURL}/response-time`, { waitUntil: "domcontentloaded" })
   await page.waitForResponse((res) => res.ok() && res.url().includes("/api/response-time/metrics"), {
     timeout: 60_000,
   })
   await settle(page)
+  const stillFile = await captureStill(page, id)
 
   const priorityInput = page.getByTestId("response-time-filter-priority")
   await mouse.click(priorityInput)
@@ -608,12 +681,14 @@ async function captureResponseTime({ page, mouse }) {
   await page.keyboard.press("Escape")
 
   await settle(page)
+  return { stillFile }
 }
 
-async function captureTeams({ page, mouse }) {
+async function captureTeams({ page, mouse, id }) {
   await page.goto(`${config.baseURL}/teams`, { waitUntil: "domcontentloaded" })
   await page.getByLabel("Search team members").waitFor({ timeout: 60_000 })
   await settle(page)
+  const stillFile = await captureStill(page, id)
 
   const search = page.getByLabel("Search team members")
   await mouse.click(search)
@@ -628,12 +703,14 @@ async function captureTeams({ page, mouse }) {
   await page.waitForTimeout(config.actionPauseMs)
   await selectFirstSelectItem(page, { excludeText: /All status/i })
   await page.waitForTimeout(config.actionPauseMs)
+  return { stillFile }
 }
 
-async function captureClients({ page, mouse }) {
+async function captureClients({ page, mouse, id }) {
   await page.goto(`${config.baseURL}/clients`, { waitUntil: "domcontentloaded" })
   await page.getByLabel("Search clients").waitFor({ timeout: 60_000 })
   await settle(page)
+  const stillFile = await captureStill(page, id)
 
   const search = page.getByLabel("Search clients")
   await mouse.click(search)
@@ -650,12 +727,14 @@ async function captureClients({ page, mouse }) {
   await noPlan.waitFor({ timeout: 10_000 })
   await noPlan.click()
   await page.waitForTimeout(config.actionPauseMs)
+  return { stillFile }
 }
 
-async function captureClientTickets({ page, mouse }) {
+async function captureClientTickets({ page, mouse, id }) {
   await page.goto(`${config.baseURL}/tickets`, { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: "Create new ticket" }).waitFor({ timeout: 60_000 })
   await settle(page)
+  const stillFile = await captureStill(page, id)
 
   const search = page.getByLabel("Search tickets")
   await mouse.click(search)
@@ -713,13 +792,14 @@ async function captureClientTickets({ page, mouse }) {
       const submitFeedback = page.getByRole("button", { name: /Submit feedback|Update feedback/i })
       await mouse.click(submitFeedback)
       await page.waitForTimeout(config.pageSettleMs)
-      return
+      return { stillFile }
     }
 
     await page.goBack()
     await page.waitForURL("**/tickets", { timeout: 60_000 })
     await page.waitForTimeout(config.actionPauseMs)
   }
+  return { stillFile }
 }
 
 async function main() {
@@ -742,47 +822,21 @@ async function main() {
     await loginAndSaveState(browser, "internal")
     log("Capturing dashboard...")
     await recordSegment(browser, {
-      id: "dashboard",
+      id: "dashboard-filters",
       storageState: internalStatePath,
       run: captureDashboard,
     })
-    log("Capturing tickets list...")
+    log("Capturing ticket creation...")
     await recordSegment(browser, {
-      id: "tickets",
+      id: "ticket-create",
       storageState: internalStatePath,
       run: captureTickets,
-    })
-    log("Capturing response time...")
-    await recordSegment(browser, {
-      id: "response-time",
-      storageState: internalStatePath,
-      run: captureResponseTime,
-    })
-    log("Capturing teams...")
-    await recordSegment(browser, {
-      id: "teams",
-      storageState: internalStatePath,
-      run: captureTeams,
-    })
-    log("Capturing clients...")
-    await recordSegment(browser, {
-      id: "clients",
-      storageState: internalStatePath,
-      run: captureClients,
     })
     log("Capturing command palette...")
     await recordSegment(browser, {
       id: "command-palette",
       storageState: internalStatePath,
       run: captureCommandPalette,
-    })
-    log("Logging in as client user...")
-    await loginAndSaveState(browser, "client")
-    log("Capturing client tickets...")
-    await recordSegment(browser, {
-      id: "client-tickets",
-      storageState: clientStatePath,
-      run: captureClientTickets,
     })
 
     const manifestPath = path.join(capturesDir, "manifest.json")

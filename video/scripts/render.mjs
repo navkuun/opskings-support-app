@@ -54,7 +54,8 @@ async function main() {
   const command = process.platform === "win32" ? "npx.cmd" : "npx"
   await fs.mkdir(path.join(videoRoot, "out"), { recursive: true })
   const browserExecutable = await resolveBrowserExecutable()
-  const args = ["remotion", "render", "src/index.tsx", "FullVideo", "out/video.mp4"]
+  const chromeMode = process.env.VIDEO_CHROME_MODE ?? "chrome-for-testing"
+  const args = ["remotion", "render", "src/index.tsx", "FullVideo", "out/video.mp4", `--chrome-mode=${chromeMode}`]
   if (browserExecutable) {
     args.push(`--browser-executable=${browserExecutable}`)
   }
