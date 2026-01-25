@@ -41,7 +41,7 @@ export function IntroScene() {
 
   const rowGap = width * 0.045
   const exampleWidth = width * 0.24
-  const xSize = width * 0.085
+  const xSize = width * 0.06
   const logoWidth = width * 0.36
   const logoHeight = (logoWidth * 44) / 304
   const rowWidth = exampleWidth + xSize + logoWidth + rowGap * 2

@@ -155,18 +155,7 @@ export function TextScene() {
   }
 
   return (
-    <AbsoluteFill>
-      <Img
-        src={staticFile("orange_background.png")}
-        alt=""
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-        }}
-      />
+    <AbsoluteFill style={{ backgroundColor: "#DDDDDD" }}>
       <AbsoluteFill
         style={{
           display: "flex",
@@ -175,49 +164,48 @@ export function TextScene() {
           padding: "0 8%",
         }}
       >
-      <div
-        style={{
-          position: "relative",
-          width: "100%",
-          height: "100%",
-          fontSize: 52 * scale,
-          fontWeight: 600,
-          fontFamily,
-          color: "#ffffff",
-          textAlign: "center",
-          textShadow: "0 0 14px rgba(255,255,255,0.55), 0 0 28px rgba(255,255,255,0.25)",
-        }}
-      >
-        {renderLine({
-          line: INTRO_LINE,
-          words: introWords,
-          start: introStart,
-          inEnd: introInEnd,
-          outStart: introHoldEnd,
-          outEnd: introOutEnd,
-        })}
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            fontSize: 52 * scale,
+            fontWeight: 600,
+            fontFamily,
+            color: "#000000",
+            textAlign: "center",
+          }}
+        >
+          {renderLine({
+            line: INTRO_LINE,
+            words: introWords,
+            start: introStart,
+            inEnd: introInEnd,
+            outStart: introHoldEnd,
+            outEnd: introOutEnd,
+          })}
 
-        {PROBLEM_LINES.map((line, index) =>
-          renderLine({
-            line,
-            words: groupWords[index],
-            start: groupStarts[index],
-            inEnd: groupInEnds[index],
-            outStart: groupHoldEnd,
-            outEnd: groupOutEnd,
-            centerOffset: baseY[index],
-          }),
-        )}
+          {PROBLEM_LINES.map((line, index) =>
+            renderLine({
+              line,
+              words: groupWords[index],
+              start: groupStarts[index],
+              inEnd: groupInEnds[index],
+              outStart: groupHoldEnd,
+              outEnd: groupOutEnd,
+              centerOffset: baseY[index],
+            }),
+          )}
 
-        {renderLine({
-          line: OUTRO_LINE,
-          words: outroWords,
-          start: outroStart,
-          inEnd: outroInEnd,
-          outStart: outroHoldEnd,
-          outEnd: outroOutEnd,
-        })}
-      </div>
+          {renderLine({
+            line: OUTRO_LINE,
+            words: outroWords,
+            start: outroStart,
+            inEnd: outroInEnd,
+            outStart: outroHoldEnd,
+            outEnd: outroOutEnd,
+          })}
+        </div>
       </AbsoluteFill>
     </AbsoluteFill>
   )

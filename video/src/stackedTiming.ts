@@ -13,10 +13,10 @@ export type StackedTiming = {
 }
 
 export function getStackedTiming(count: number, fps: number): StackedTiming {
-  const stagger = Math.round(fps * 0.9)
-  const inDuration = Math.round(fps * 1.3)
-  const hold = Math.round(fps * 0.9)
-  const spread = Math.round(fps * 0.8)
+  const stagger = Math.round(fps * 0.55)
+  const inDuration = Math.round(fps * 0.85)
+  const hold = Math.round(fps * 0.4)
+  const spread = Math.round(fps * 0.6)
   const endHold = Math.round(fps * 0.3)
   const carouselStep = Math.max(1, Math.round(fps * 0.3))
   const safeCount = Math.max(1, count)
