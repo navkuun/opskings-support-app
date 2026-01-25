@@ -384,9 +384,17 @@ async function setCursorVisibility(page, visible) {
         const prev = cursor.dataset.prevOpacity ?? ""
         cursor.style.opacity = prev
         delete cursor.dataset.prevOpacity
+        if (cursor.dataset.prevDisplay) {
+          cursor.style.display = cursor.dataset.prevDisplay
+          delete cursor.dataset.prevDisplay
+        } else {
+          cursor.style.display = ""
+        }
       } else if (cursor.dataset.prevOpacity === undefined) {
         cursor.dataset.prevOpacity = cursor.style.opacity ?? ""
         cursor.style.opacity = "0"
+        cursor.dataset.prevDisplay = cursor.style.display ?? ""
+        cursor.style.display = "none"
       }
     }
 
@@ -395,9 +403,17 @@ async function setCursorVisibility(page, visible) {
         const prev = ring.dataset.prevOpacity ?? ""
         ring.style.opacity = prev
         delete ring.dataset.prevOpacity
+        if (ring.dataset.prevDisplay) {
+          ring.style.display = ring.dataset.prevDisplay
+          delete ring.dataset.prevDisplay
+        } else {
+          ring.style.display = ""
+        }
       } else if (ring.dataset.prevOpacity === undefined) {
         ring.dataset.prevOpacity = ring.style.opacity ?? ""
         ring.style.opacity = "0"
+        ring.dataset.prevDisplay = ring.style.display ?? ""
+        ring.style.display = "none"
       }
     }
   }, visible)
@@ -407,7 +423,13 @@ async function captureStill(page, id) {
   await fs.mkdir(stillsDir, { recursive: true })
   const stillPath = path.join(stillsDir, `${id}.png`)
   try {
+    try {
+      await page.waitForFunction(() => document.getElementById("pw-cursor"), { timeout: 3000 })
+    } catch {
+      // Cursor may not be injected yet; still hide native cursor via CSS.
+    }
     await setCursorVisibility(page, false)
+    await page.waitForTimeout(120)
     await page.screenshot({ path: stillPath })
   } finally {
     await setCursorVisibility(page, true)
