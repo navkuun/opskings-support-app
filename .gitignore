@@ -55,6 +55,6 @@ core.*
 
 # video automation (Remotion + Playwright)
 /video/node_modules
-/video/out
+# /video/out
 /video/public/captures
 /video/.cache

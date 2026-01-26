@@ -157,10 +157,7 @@ export function TicketsScene() {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   })
-  const overlayOpacity = interpolate(frame, [modalInStart, modalInEnd], [0, 0.2], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  })
+  const overlayOpacity = 0
 
   const modalWidth = Math.min(width * 0.7, 760 * scale)
   const modalHeight = 300 * scale
@@ -345,7 +342,7 @@ export function TicketsScene() {
         <div
           style={{
             borderRadius: frameRadius,
-            backgroundColor: "oklch(0.97 0 0 / 0.72)",
+            backgroundColor: "#ffffff",
             padding: framePad,
           }}
         >
