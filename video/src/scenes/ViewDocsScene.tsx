@@ -3,32 +3,26 @@ import { AbsoluteFill, Easing, Img, Sequence, interpolate, staticFile, useCurren
 import { ibmPlexSans } from "../fonts"
 
 const fontFamily = ibmPlexSans
-const BASE_TEXT = "Dashboard metrics that keep you"
-const HIGHLIGHT_TEXT = " on track"
-const HIGHLIGHT_COLOR = "#ff7a00"
 
-export function DashboardMetricsIntroScene() {
+const LINE = "View our docs for a full view of things!"
+
+export function ViewDocsScene() {
   const frame = useCurrentFrame()
-  const { fps, width, height, durationInFrames } = useVideoConfig()
+  const { fps, width, durationInFrames } = useVideoConfig()
   const scale = width / 1280
   const logoWidth = width * 0.09
   const logoPad = width * 0.02
 
-  const enter = interpolate(frame, [0, fps * 0.45], [0, 1], {
+  const enter = interpolate(frame, [0, fps * 0.4], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.out(Easing.cubic),
   })
-  const exit = interpolate(
-    frame,
-    [durationInFrames - fps * 0.4, durationInFrames],
-    [0, 1],
-    {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-      easing: Easing.in(Easing.cubic),
-    },
-  )
+  const exit = interpolate(frame, [durationInFrames - fps * 0.35, durationInFrames], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.in(Easing.cubic),
+  })
   const opacity = Math.min(enter, 1 - exit)
   const translateY = interpolate(enter, [0, 1], [18 * scale, 0], {
     extrapolateLeft: "clamp",
@@ -72,50 +66,37 @@ export function DashboardMetricsIntroScene() {
           lineHeight: 1.1,
         }}
       >
-        <TypingLine
-          baseText={BASE_TEXT}
-          highlightText={HIGHLIGHT_TEXT}
-          startFrame={0}
-          durationInFrames={typingDuration}
-          fps={fps}
-        />
+        <TypingLine text={LINE} startFrame={0} durationInFrames={typingDuration} fps={fps} />
       </div>
     </AbsoluteFill>
   )
 }
 
 function TypingLine({
-  baseText,
-  highlightText,
+  text,
   startFrame,
   durationInFrames,
   fps,
 }: {
-  baseText: string
-  highlightText: string
+  text: string
   startFrame: number
   durationInFrames: number
   fps: number
 }) {
   const frame = useCurrentFrame()
-  const fullText = `${baseText}${highlightText}`
   const progress = interpolate(frame, [startFrame, startFrame + durationInFrames], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.linear,
   })
-  const visibleChars = Math.floor(progress * fullText.length)
-  const baseChars = Math.min(visibleChars, baseText.length)
-  const highlightChars = Math.max(0, visibleChars - baseText.length)
-  const baseDisplay = baseText.slice(0, baseChars)
-  const highlightDisplay = highlightText.slice(0, highlightChars)
+  const visibleChars = Math.floor(progress * text.length)
+  const displayText = text.slice(0, visibleChars)
   const cursorOn = Math.floor(frame / Math.max(1, fps * 0.2)) % 2 === 0
   const showCursor = progress < 1
 
   return (
     <span>
-      {baseDisplay}
-      {highlightDisplay ? <span style={{ color: HIGHLIGHT_COLOR }}>{highlightDisplay}</span> : null}
+      {displayText}
       {showCursor ? <span style={{ marginLeft: 2 }}>{cursorOn ? "|" : " "}</span> : null}
     </span>
   )

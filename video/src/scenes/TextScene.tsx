@@ -1,11 +1,10 @@
-import { loadFont } from "@remotion/google-fonts/Inter"
 import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
+import { ibmPlexSans } from "../fonts"
 
-const { fontFamily } = loadFont("normal", { weights: ["500", "700"], subsets: ["latin"] })
+const fontFamily = ibmPlexSans
 
 const INTRO_LINE = "At OpsKings you told us..."
-const PROBLEM_LINES = ["Clients were churning", "You're team was suffering", "Deals were being lost"]
-const OUTRO_LINE = "So this is what we built"
+const PROBLEM_LINES = ["Clients were churning.", "You're team was suffering.", "Deals were being lost."]
 const RED_WORDS = ["suffering", "lost"]
 const ORANGE_WORDS: string[] = []
 
@@ -22,7 +21,7 @@ function getWordColor(word: string) {
 
 export function TextScene() {
   const frame = useCurrentFrame()
-  const { fps, width, height } = useVideoConfig()
+  const { fps, width } = useVideoConfig()
   const scale = width / 1280
   const logoWidth = width * 0.09
   const logoPad = width * 0.02
@@ -48,14 +47,6 @@ export function TextScene() {
   const groupInEnds = groupWords.map((words, index) => groupStarts[index] + getInDuration(words))
   const groupHoldEnd = Math.max(...groupInEnds) + Math.round(fps * 0.5)
   const groupOutEnd = groupHoldEnd + lineOut
-
-  const outroWords = OUTRO_LINE.split(" ")
-  const outroCharStagger = Math.max(1, Math.round(fps * 0.035))
-  const outroInDuration = Math.max(getInDuration(outroWords), OUTRO_LINE.length * outroCharStagger)
-  const outroStart = groupOutEnd + lineGap
-  const outroInEnd = outroStart + outroInDuration
-  const outroHoldEnd = outroInEnd + lineHold
-  const outroOutEnd = outroHoldEnd + lineOut
 
   const p2 = interpolate(frame, [groupStarts[1], groupInEnds[1]], [0, 1], {
     extrapolateLeft: "clamp",
@@ -157,61 +148,9 @@ export function TextScene() {
     )
   }
 
-  const renderTypingLine = ({
-    line,
-    start,
-    inEnd,
-    outStart,
-    outEnd,
-  }: {
-    line: string
-    start: number
-    inEnd: number
-    outStart: number
-    outEnd: number
-  }) => {
-    const enterProgress = interpolate(frame, [start, inEnd], [0, 1], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-      easing: Easing.linear,
-    })
-    const exitProgress = interpolate(frame, [outStart, outEnd], [0, 1], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-      easing: Easing.in(Easing.cubic),
-    })
-    const maxChars = line.length
-    const visibleChars = Math.floor(interpolate(enterProgress, [0, 1], [0, maxChars]))
-    const displayText = line.slice(0, visibleChars)
-    const opacity = Math.min(enterProgress, 1 - exitProgress)
-    const cursorOn = Math.floor(frame / Math.max(1, fps * 0.2)) % 2 === 0
-    const showCursor = enterProgress > 0 && frame < outStart
-
-    return (
-      <div
-        key={`${line}-${start}`}
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
-          opacity,
-          whiteSpace: "nowrap",
-          maxWidth: "100%",
-        }}
-      >
-        <span>
-          {displayText}
-          {showCursor ? (
-            <span style={{ opacity: cursorOn ? 1 : 0, marginLeft: 2 * scale }}>|</span>
-          ) : null}
-        </span>
-      </div>
-    )
-  }
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#DDDDDD" }}>
+    <AbsoluteFill style={{ backgroundColor: "#ffffff" }}>
       <Img
         src={staticFile("opskings-full-black.svg")}
         alt="OpsKings"
@@ -266,13 +205,6 @@ export function TextScene() {
             }),
           )}
 
-        {renderTypingLine({
-          line: OUTRO_LINE,
-          start: outroStart,
-          inEnd: outroInEnd,
-          outStart: outroHoldEnd,
-          outEnd: outroOutEnd,
-        })}
       </div>
       </AbsoluteFill>
     </AbsoluteFill>

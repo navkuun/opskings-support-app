@@ -1,5 +1,6 @@
-import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
-import { ibmPlexMono } from "../fonts"
+import { Audio } from "@remotion/media"
+import { AbsoluteFill, Easing, Img, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
+import { ibmPlexSans } from "../fonts"
 
 export function OutroScene() {
   const frame = useCurrentFrame()
@@ -23,12 +24,15 @@ export function OutroScene() {
       style={{
         backgroundColor: "#101014",
         color: "#ffffff",
-        fontFamily: ibmPlexMono,
+        fontFamily: ibmPlexSans,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
       }}
     >
+      <Sequence from={0}>
+        <Audio src={staticFile("sfx/swoosh_out.mp3")} volume={0.24} />
+      </Sequence>
       <div style={{ textAlign: "center", opacity }}>
         <Img
           src={staticFile("opskings-full-white.svg")}

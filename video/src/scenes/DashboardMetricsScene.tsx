@@ -1,11 +1,11 @@
-import { loadFont } from "@remotion/google-fonts/Inter"
 import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
 import type { ReactNode } from "react"
 import { useId } from "react"
 
 import { getMetricsTiming } from "../metricsTiming"
+import { ibmPlexSans } from "../fonts"
 
-const { fontFamily } = loadFont("normal", { weights: ["500", "600", "700"], subsets: ["latin"] })
+const fontFamily = ibmPlexSans
 
 const THEME = {
   background: "oklch(1 0 0)",
@@ -87,7 +87,7 @@ export function DashboardMetricsScene() {
   const rowGap = sectionWidth * 0.06
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#DDDDDD", fontFamily }}>
+    <AbsoluteFill style={{ backgroundColor: "#ffffff", fontFamily }}>
       <Img
         src={staticFile("opskings-full-black.svg")}
         alt="OpsKings"
@@ -125,6 +125,7 @@ export function DashboardMetricsScene() {
           extrapolateRight: "clamp",
         })
         const sectionTranslate = slideIn + slideOut
+        const chartOffsetY = section.id === "tickets-by-priority" ? -2 * scale : 0
         const chartProgress = interpolate(
           frame,
           [start, start + timing.sectionDuration * 0.7],
@@ -151,7 +152,7 @@ export function DashboardMetricsScene() {
               alignItems: "center",
             }}
           >
-            <div style={{ width: chartWidth }}>
+            <div style={{ width: chartWidth, transform: `translateY(${chartOffsetY}px)` }}>
               {section.id === "tickets-over-time" ? (
                 <TicketsOverTimeCard progress={chartProgress} scale={scale} />
               ) : null}

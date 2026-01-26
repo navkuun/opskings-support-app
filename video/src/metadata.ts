@@ -18,13 +18,27 @@ export const calculateMetadata: CalculateMetadataFunction<FullVideoProps> = asyn
   const fps = manifest.fps || 30
 
   const introFrames = 60
-  const textFrames = 180
+  const textFrames = 120
+  const builtFrames = 54
   const metricsIntroFrames = 60
+  const ticketsIntroFrames = 60
+  const ticketsFrames = 210
+  const viewDocsFrames = 60
   const outroFrames = 60
   const metricsFrames = getMetricsTiming(DASHBOARD_METRICS_COUNT, fps).totalFrames
   const stackedCount = manifest.segments.filter((segment) => segment.kind !== "tool" && segment.still).length
   const stackedFrames = getStackedTiming(stackedCount, fps).totalFrames
-  const totalFrames = introFrames + textFrames + metricsIntroFrames + metricsFrames + stackedFrames + outroFrames
+  const totalFrames =
+    introFrames +
+    textFrames +
+    builtFrames +
+    metricsIntroFrames +
+    metricsFrames +
+    stackedFrames +
+    ticketsIntroFrames +
+    ticketsFrames +
+    viewDocsFrames +
+    outroFrames
 
   return {
     durationInFrames: Math.max(1, totalFrames),

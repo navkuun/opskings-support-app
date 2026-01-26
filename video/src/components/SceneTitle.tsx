@@ -1,5 +1,5 @@
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig } from "remotion"
-import { ibmPlexMono } from "../fonts"
+import { ibmPlexSans } from "../fonts"
 
 export function SceneTitle({
   title,
@@ -61,7 +61,7 @@ export function SceneTitle({
             backgroundColor: "#a68358",
           }}
         />
-        <div style={{ color: "#f8f8f8", fontFamily: ibmPlexMono }}>
+        <div style={{ color: "#f8f8f8", fontFamily: ibmPlexSans }}>
           <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: 0.5 }}>{title}</div>
           {subtitle ? (
             <div style={{ marginTop: 4, fontSize: 18, fontWeight: 400, color: "#e6e2db" }}>

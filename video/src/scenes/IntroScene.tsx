@@ -1,4 +1,5 @@
-import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
+import { Audio } from "@remotion/media"
+import { AbsoluteFill, Easing, Img, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
 
 export function IntroScene() {
   const frame = useCurrentFrame()
@@ -135,6 +136,9 @@ export function IntroScene() {
           opacity: outroOpacity,
         }}
       >
+        <Sequence from={Math.round(crownStart)}>
+          <Audio src={staticFile("sfx/swoosh_in.mp3")} volume={0.22} />
+        </Sequence>
         <div
           style={{
             position: "relative",

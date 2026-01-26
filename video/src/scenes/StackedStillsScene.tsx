@@ -1,4 +1,5 @@
-import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
+import { Audio } from "@remotion/media"
+import { AbsoluteFill, Easing, Img, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
 
 import type { CaptureManifest } from "../types"
 import { getStackedTiming } from "../stackedTiming"
@@ -19,7 +20,7 @@ export function StackedStillsScene({ manifest }: StackedStillsProps) {
     .filter((still): still is string => Boolean(still))
 
   if (stills.length === 0) {
-    return <AbsoluteFill style={{ backgroundColor: "#DDDDDD" }} />
+    return <AbsoluteFill style={{ backgroundColor: "#ffffff" }} />
   }
 
   const timing = getStackedTiming(stills.length, fps)
@@ -71,7 +72,13 @@ export function StackedStillsScene({ manifest }: StackedStillsProps) {
   const bottomIndex = (centerIndex + 1) % maxCount
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#DDDDDD", perspective: 1400 }}>
+    <AbsoluteFill style={{ backgroundColor: "#ffffff", perspective: 1400 }}>
+      <Sequence from={0}>
+        <Audio src={staticFile("sfx/swoosh_in.mp3")} volume={0.2} />
+      </Sequence>
+      <Sequence from={timing.spreadStart}>
+        <Audio src={staticFile("sfx/expand.mp3")} volume={0.28} />
+      </Sequence>
       <Img
         src={staticFile("opskings-full-black.svg")}
         alt="OpsKings"

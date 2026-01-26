@@ -3,38 +3,34 @@ import { AbsoluteFill, Easing, Img, Sequence, interpolate, staticFile, useCurren
 import { ibmPlexSans } from "../fonts"
 
 const fontFamily = ibmPlexSans
-const BASE_TEXT = "Dashboard metrics that keep you"
-const HIGHLIGHT_TEXT = " on track"
+
+const BASE_TEXT = "So this is what we built"
+const HIGHLIGHT_TEXT = " for you"
 const HIGHLIGHT_COLOR = "#ff7a00"
 
-export function DashboardMetricsIntroScene() {
+export function BuiltScene() {
   const frame = useCurrentFrame()
-  const { fps, width, height, durationInFrames } = useVideoConfig()
+  const { fps, width, durationInFrames } = useVideoConfig()
   const scale = width / 1280
   const logoWidth = width * 0.09
   const logoPad = width * 0.02
+  const typingDuration = Math.round(fps * 1.2)
 
-  const enter = interpolate(frame, [0, fps * 0.45], [0, 1], {
+  const enter = interpolate(frame, [0, fps * 0.4], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.out(Easing.cubic),
   })
-  const exit = interpolate(
-    frame,
-    [durationInFrames - fps * 0.4, durationInFrames],
-    [0, 1],
-    {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-      easing: Easing.in(Easing.cubic),
-    },
-  )
+  const exit = interpolate(frame, [durationInFrames - fps * 0.35, durationInFrames], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.in(Easing.cubic),
+  })
   const opacity = Math.min(enter, 1 - exit)
   const translateY = interpolate(enter, [0, 1], [18 * scale, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   })
-  const typingDuration = Math.round(fps * 1.2)
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#ffffff", fontFamily }}>
@@ -72,13 +68,7 @@ export function DashboardMetricsIntroScene() {
           lineHeight: 1.1,
         }}
       >
-        <TypingLine
-          baseText={BASE_TEXT}
-          highlightText={HIGHLIGHT_TEXT}
-          startFrame={0}
-          durationInFrames={typingDuration}
-          fps={fps}
-        />
+        <TypingLine baseText={BASE_TEXT} highlightText={HIGHLIGHT_TEXT} durationInFrames={typingDuration} fps={fps} />
       </div>
     </AbsoluteFill>
   )
@@ -87,19 +77,17 @@ export function DashboardMetricsIntroScene() {
 function TypingLine({
   baseText,
   highlightText,
-  startFrame,
   durationInFrames,
   fps,
 }: {
   baseText: string
   highlightText: string
-  startFrame: number
   durationInFrames: number
   fps: number
 }) {
   const frame = useCurrentFrame()
   const fullText = `${baseText}${highlightText}`
-  const progress = interpolate(frame, [startFrame, startFrame + durationInFrames], [0, 1], {
+  const progress = interpolate(frame, [0, durationInFrames], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.linear,

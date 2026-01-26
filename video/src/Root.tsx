@@ -8,6 +8,10 @@ import { TextScene } from "./scenes/TextScene"
 import { DashboardMetricsIntroScene } from "./scenes/DashboardMetricsIntroScene"
 import { StackedStillsScene } from "./scenes/StackedStillsScene"
 import { DashboardMetricsScene, DASHBOARD_METRICS_COUNT } from "./scenes/DashboardMetricsScene"
+import { TicketsIntroScene } from "./scenes/TicketsIntroScene"
+import { TicketsScene } from "./scenes/TicketsScene"
+import { ViewDocsScene } from "./scenes/ViewDocsScene"
+import { BuiltScene } from "./scenes/BuiltScene"
 import { getMetricsTiming } from "./metricsTiming"
 
 export const RemotionRoot = () => {
@@ -27,7 +31,8 @@ export const RemotionRoot = () => {
           calculateMetadata={calculateMetadata}
         />
         <Composition id="Intro" component={IntroScene} durationInFrames={60} fps={30} width={1280} height={720} />
-        <Composition id="Text" component={TextScene} durationInFrames={180} fps={30} width={1280} height={720} />
+        <Composition id="Text" component={TextScene} durationInFrames={120} fps={30} width={1280} height={720} />
+        <Composition id="Built" component={BuiltScene} durationInFrames={54} fps={30} width={1280} height={720} />
         <Composition
           id="DashboardMetricsIntro"
           component={DashboardMetricsIntroScene}
@@ -44,6 +49,23 @@ export const RemotionRoot = () => {
           width={1280}
           height={720}
         />
+        <Composition
+          id="TicketsIntro"
+          component={TicketsIntroScene}
+          durationInFrames={60}
+          fps={30}
+          width={1280}
+          height={720}
+        />
+        <Composition
+          id="TicketsScene"
+          component={TicketsScene}
+          durationInFrames={210}
+          fps={30}
+          width={1280}
+          height={720}
+        />
+        <Composition id="ViewDocs" component={ViewDocsScene} durationInFrames={60} fps={30} width={1280} height={720} />
         <Composition
           id="StackedStills"
           component={StackedStillsScene}

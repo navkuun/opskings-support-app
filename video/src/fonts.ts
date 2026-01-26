@@ -1,6 +1,6 @@
-import { loadFont } from "@remotion/google-fonts/IBMPlexMono"
+import { loadFont } from "@remotion/google-fonts/IBMPlexSans"
 
-export const { fontFamily: ibmPlexMono } = loadFont("normal", {
+export const { fontFamily: ibmPlexSans } = loadFont("normal", {
   weights: ["400", "600", "700"],
   subsets: ["latin"],
 })
