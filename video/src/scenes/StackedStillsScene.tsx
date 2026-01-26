@@ -11,6 +11,8 @@ export type StackedStillsProps = {
 export function StackedStillsScene({ manifest }: StackedStillsProps) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
+  const logoWidth = width * 0.09
+  const logoPad = width * 0.02
   const stills = (manifest?.segments ?? [])
     .filter((segment) => segment.kind !== "tool")
     .map((segment) => segment.still)
@@ -63,12 +65,26 @@ export function StackedStillsScene({ manifest }: StackedStillsProps) {
   const carouselFrame = frame - timing.carouselStart
   const stepIndex = Math.max(0, Math.floor(carouselFrame / timing.carouselStep))
   const carouselStartIndex = Math.max(0, maxCount - 2)
-  const centerIndex = (carouselStartIndex + stepIndex) % maxCount
+  const clampedStep = Math.min(stepIndex, maxCount - 1)
+  const centerIndex = (carouselStartIndex + clampedStep) % maxCount
   const topIndex = (centerIndex - 1 + maxCount) % maxCount
   const bottomIndex = (centerIndex + 1) % maxCount
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#DDDDDD", perspective: 1400 }}>
+      <Img
+        src={staticFile("opskings-full-black.svg")}
+        alt="OpsKings"
+        style={{
+          position: "absolute",
+          top: logoPad,
+          left: logoPad,
+          width: logoWidth,
+          height: "auto",
+          opacity: 0.9,
+          zIndex: 5,
+        }}
+      />
       {stills.map((still, index) => {
         const start = index * timing.stagger
         const inEnd = start + timing.inDuration
@@ -110,10 +126,6 @@ export function StackedStillsScene({ manifest }: StackedStillsProps) {
         const lift = interpolate(enter, [0, 1], [height * 1.05, 0])
         const scale = interpolate(enter, [0, 1], [0.98, 1])
         const perCardScale = 0.92 + (index / Math.max(1, maxCount - 1)) * 0.1
-        const tilt = interpolate(enter, [0, 1], [18, 0], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        })
         const visible = enter > 0 ? 1 : 0
         const baseScale = scale * stackScale * perCardScale
         const targetScale = (triptychWidth / cardWidth) * (0.94 + expandProgress * 0.06)
@@ -137,12 +149,6 @@ export function StackedStillsScene({ manifest }: StackedStillsProps) {
               extrapolateRight: "clamp",
             })
           : y
-        const finalTilt = isLastThree
-          ? interpolate(expandProgress, [0, 1], [tilt, 0], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp",
-            })
-          : tilt
         const fadeOut = isLastThree
           ? 1
           : interpolate(expandProgress, [0, 1], [1, 0], {
@@ -175,7 +181,7 @@ export function StackedStillsScene({ manifest }: StackedStillsProps) {
               top: baseY,
               width: cardWidth,
               height: cardHeight,
-              transform: `translate(-50%, -50%) translate(${finalX}px, ${finalY + lift}px) rotateX(${finalTilt}deg) scale(${finalScale})`,
+              transform: `translate(-50%, -50%) translate(${finalX}px, ${finalY + lift}px) scale(${finalScale})`,
               transformOrigin: "center center",
               opacity: visible * fadeOut,
               borderRadius: 0,

@@ -22,8 +22,10 @@ function getWordColor(word: string) {
 
 export function TextScene() {
   const frame = useCurrentFrame()
-  const { fps, width } = useVideoConfig()
+  const { fps, width, height } = useVideoConfig()
   const scale = width / 1280
+  const logoWidth = width * 0.09
+  const logoPad = width * 0.02
   const wordStagger = Math.round(fps * 0.06)
   const wordDuration = Math.round(fps * 0.28)
   const lineHold = Math.round(fps * 0.5)
@@ -48,7 +50,8 @@ export function TextScene() {
   const groupOutEnd = groupHoldEnd + lineOut
 
   const outroWords = OUTRO_LINE.split(" ")
-  const outroInDuration = getInDuration(outroWords)
+  const outroCharStagger = Math.max(1, Math.round(fps * 0.035))
+  const outroInDuration = Math.max(getInDuration(outroWords), OUTRO_LINE.length * outroCharStagger)
   const outroStart = groupOutEnd + lineGap
   const outroInEnd = outroStart + outroInDuration
   const outroHoldEnd = outroInEnd + lineHold
@@ -154,8 +157,74 @@ export function TextScene() {
     )
   }
 
+  const renderTypingLine = ({
+    line,
+    start,
+    inEnd,
+    outStart,
+    outEnd,
+  }: {
+    line: string
+    start: number
+    inEnd: number
+    outStart: number
+    outEnd: number
+  }) => {
+    const enterProgress = interpolate(frame, [start, inEnd], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.linear,
+    })
+    const exitProgress = interpolate(frame, [outStart, outEnd], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.in(Easing.cubic),
+    })
+    const maxChars = line.length
+    const visibleChars = Math.floor(interpolate(enterProgress, [0, 1], [0, maxChars]))
+    const displayText = line.slice(0, visibleChars)
+    const opacity = Math.min(enterProgress, 1 - exitProgress)
+    const cursorOn = Math.floor(frame / Math.max(1, fps * 0.2)) % 2 === 0
+    const showCursor = enterProgress > 0 && frame < outStart
+
+    return (
+      <div
+        key={`${line}-${start}`}
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          opacity,
+          whiteSpace: "nowrap",
+          maxWidth: "100%",
+        }}
+      >
+        <span>
+          {displayText}
+          {showCursor ? (
+            <span style={{ opacity: cursorOn ? 1 : 0, marginLeft: 2 * scale }}>|</span>
+          ) : null}
+        </span>
+      </div>
+    )
+  }
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#DDDDDD" }}>
+      <Img
+        src={staticFile("opskings-full-black.svg")}
+        alt="OpsKings"
+        style={{
+          position: "absolute",
+          top: logoPad,
+          left: logoPad,
+          width: logoWidth,
+          height: "auto",
+          opacity: 0.9,
+          zIndex: 5,
+        }}
+      />
       <AbsoluteFill
         style={{
           display: "flex",
@@ -176,11 +245,11 @@ export function TextScene() {
             textAlign: "center",
           }}
         >
-          {renderLine({
-            line: INTRO_LINE,
-            words: introWords,
-            start: introStart,
-            inEnd: introInEnd,
+        {renderLine({
+          line: INTRO_LINE,
+          words: introWords,
+          start: introStart,
+          inEnd: introInEnd,
             outStart: introHoldEnd,
             outEnd: introOutEnd,
           })}
@@ -197,15 +266,14 @@ export function TextScene() {
             }),
           )}
 
-          {renderLine({
-            line: OUTRO_LINE,
-            words: outroWords,
-            start: outroStart,
-            inEnd: outroInEnd,
-            outStart: outroHoldEnd,
-            outEnd: outroOutEnd,
-          })}
-        </div>
+        {renderTypingLine({
+          line: OUTRO_LINE,
+          start: outroStart,
+          inEnd: outroInEnd,
+          outStart: outroHoldEnd,
+          outEnd: outroOutEnd,
+        })}
+      </div>
       </AbsoluteFill>
     </AbsoluteFill>
   )

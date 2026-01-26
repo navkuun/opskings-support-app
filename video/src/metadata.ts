@@ -4,6 +4,8 @@ import type { CaptureManifest } from "./types"
 import type { FullVideoProps } from "./FullVideo"
 import { getStackedTiming } from "./stackedTiming"
 import type { StackedStillsProps } from "./scenes/StackedStillsScene"
+import { getMetricsTiming } from "./metricsTiming"
+import { DASHBOARD_METRICS_COUNT } from "./scenes/DashboardMetricsScene"
 
 async function loadManifest(manifestPath: string) {
   const response = await fetch(staticFile(manifestPath))
@@ -17,10 +19,12 @@ export const calculateMetadata: CalculateMetadataFunction<FullVideoProps> = asyn
 
   const introFrames = 60
   const textFrames = 180
+  const metricsIntroFrames = 60
   const outroFrames = 60
+  const metricsFrames = getMetricsTiming(DASHBOARD_METRICS_COUNT, fps).totalFrames
   const stackedCount = manifest.segments.filter((segment) => segment.kind !== "tool" && segment.still).length
   const stackedFrames = getStackedTiming(stackedCount, fps).totalFrames
-  const totalFrames = introFrames + textFrames + stackedFrames + outroFrames
+  const totalFrames = introFrames + textFrames + metricsIntroFrames + metricsFrames + stackedFrames + outroFrames
 
   return {
     durationInFrames: Math.max(1, totalFrames),

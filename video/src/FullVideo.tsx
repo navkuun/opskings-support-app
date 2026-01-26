@@ -5,9 +5,12 @@ import { Audio } from "@remotion/media"
 import { IntroScene } from "./scenes/IntroScene"
 import { OutroScene } from "./scenes/OutroScene"
 import { TextScene } from "./scenes/TextScene"
+import { DashboardMetricsIntroScene } from "./scenes/DashboardMetricsIntroScene"
 import { StackedStillsScene } from "./scenes/StackedStillsScene"
+import { DashboardMetricsScene, DASHBOARD_METRICS_COUNT } from "./scenes/DashboardMetricsScene"
 import type { CaptureManifest } from "./types"
 import { getStackedTiming } from "./stackedTiming"
+import { getMetricsTiming } from "./metricsTiming"
 
 export type FullVideoProps = {
   manifestPath: string
@@ -16,6 +19,7 @@ export type FullVideoProps = {
 
 const INTRO_FRAMES = 60
 const TEXT_FRAMES = 180
+const METRICS_INTRO_FRAMES = 60
 const OUTRO_FRAMES = 60
 
 export function FullVideo({ manifest }: FullVideoProps) {
@@ -48,6 +52,21 @@ export function FullVideo({ manifest }: FullVideoProps) {
     </Sequence>,
   )
   from += stackedTiming.totalFrames
+
+  sequences.push(
+    <Sequence key="metrics-intro" from={from} durationInFrames={METRICS_INTRO_FRAMES}>
+      <DashboardMetricsIntroScene />
+    </Sequence>,
+  )
+  from += METRICS_INTRO_FRAMES
+
+  const metricsTiming = getMetricsTiming(DASHBOARD_METRICS_COUNT, manifest.fps ?? 30)
+  sequences.push(
+    <Sequence key="metrics" from={from} durationInFrames={metricsTiming.totalFrames}>
+      <DashboardMetricsScene />
+    </Sequence>,
+  )
+  from += metricsTiming.totalFrames
 
   sequences.push(
     <Sequence key="outro" from={from} durationInFrames={OUTRO_FRAMES}>
